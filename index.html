@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#18231d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Мебельщик">
+  <title>Мебельщик — часы и доход</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">УЧЁТ РАБОТЫ</div>
+      <h1>Мебельщик</h1>
+    </div>
+    <button id="installBtn" class="ghost hidden">Установить</button>
+  </header>
+
+  <main>
+    <section id="dashboardView" class="view active">
+      <div class="toolbar">
+        <div>
+          <div class="section-kicker">АНАЛИТИКА</div>
+          <h2>Результаты</h2>
+        </div>
+        <select id="yearSelect" aria-label="Выбранный год"></select>
+      </div>
+
+      <div class="hero-card">
+        <div class="hero-label">Доход за выбранный год</div>
+        <div id="yearIncome" class="hero-value">0 ₽</div>
+        <div id="yearMeta" class="hero-meta"></div>
+      </div>
+
+      <div class="kpi-grid">
+        <article class="kpi"><span>Часы</span><strong id="yearHours">0</strong></article>
+        <article class="kpi"><span>Доход / час</span><strong id="avgHour">0 ₽</strong></article>
+        <article class="kpi"><span>Доход / день</span><strong id="avgDay">0 ₽</strong></article>
+        <article class="kpi"><span>Отработано дней</span><strong id="elapsedDays">0</strong></article>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>По месяцам</h3>
+          <span class="muted">Только завершённые заказы и фактические прошедшие часы</span>
+        </div>
+        <div id="monthsList" class="months-list"></div>
+      </div>
+    </section>
+
+    <section id="ordersView" class="view">
+      <div class="toolbar">
+        <div>
+          <div class="section-kicker">ЗАКАЗЫ</div>
+          <h2>История работ</h2>
+        </div>
+        <button id="addOrderBtn" class="primary">+ Заказ</button>
+      </div>
+      <input id="orderSearch" class="search" type="search" placeholder="Поиск по номеру или работе">
+      <div id="ordersList" class="orders-list"></div>
+      <div id="ordersEmpty" class="empty hidden">Заказов пока нет.</div>
+    </section>
+
+    <section id="progressView" class="view">
+      <div class="toolbar">
+        <div>
+          <div class="section-kicker">В ПРОЦЕССЕ</div>
+          <h2>Текущие заказы <span id="progressCount" class="count-badge">0</span></h2>
+        </div>
+        <button id="addProgressBtn" class="primary">+ Заказ</button>
+      </div>
+      <div class="notice">Эти заказы отображаются отдельно и не входят в доход, часы и средние показатели до перевода в статус «Завершён».</div>
+      <input id="progressSearch" class="search" type="search" placeholder="Поиск по текущим заказам">
+      <div id="progressList" class="orders-list"></div>
+      <div id="progressEmpty" class="empty hidden">Заказов в процессе нет.</div>
+    </section>
+
+    <section id="calendarView" class="view">
+      <div class="toolbar">
+        <div>
+          <div class="section-kicker">КАЛЕНДАРЬ</div>
+          <h2>Часы по дням</h2>
+        </div>
+        <select id="calendarYearSelect" aria-label="Год календаря"></select>
+      </div>
+      <div class="notice">Для каждого дня фиксируйте фактическую смену кнопками. Пауза вычитается из рабочего времени. Все расчёты заказов и отчётности используют эти интервалы.</div>
+      <div id="weeksList" class="weeks-list"></div>
+    </section>
+
+    <section id="settingsView" class="view">
+      <div class="toolbar">
+        <div>
+          <div class="section-kicker">НАСТРОЙКИ</div>
+          <h2>Данные и график</h2>
+        </div>
+      </div>
+
+      <div class="panel form-panel">
+        <h3>Стандартный рабочий день</h3>
+        <div class="two-cols">
+          <label>Начало<input id="standardStart" type="text" placeholder="10:00" pattern="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$" maxlength="5"></label>
+          <label>Конец<input id="standardEnd" type="text" placeholder="18:00" pattern="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$" maxlength="5"></label>
+        </div>
+        <button id="saveSettingsBtn" class="primary wide">Сохранить график</button>
+      </div>
+
+      <div class="panel form-panel">
+        <h3>Резервная копия</h3>
+        <p class="muted">Данные хранятся только на этом устройстве. Экспорт спасает их от героической гибели вместе с телефоном.</p>
+        <div class="action-stack">
+          <button id="exportBackupBtn" class="secondary">Скачать резервную копию</button>
+          <label class="secondary file-label">Загрузить резервную копию<input id="importBackupInput" type="file" accept=".json,application/json"></label>
+          <button id="exportCsvBtn" class="secondary">Экспорт заказов в CSV</button>
+          <button id="resetBtn" class="danger">Сбросить к данным из Excel</button>
+        </div>
+      </div>
+
+      <div class="panel about">
+        <h3>О приложении</h3>
+        <p>Версия 1.2 · работает офлайн · без регистрации · данные не отправляются на сервер.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav">
+    <button data-view="dashboardView" class="nav-btn active"><span>▥</span>Аналитика</button>
+    <button data-view="ordersView" class="nav-btn"><span>✓</span>Заказы</button>
+    <button data-view="progressView" class="nav-btn"><span>◷</span>В процессе</button>
+    <button data-view="calendarView" class="nav-btn"><span>▦</span>Часы</button>
+    <button data-view="settingsView" class="nav-btn"><span>⚙</span>Настройки</button>
+  </nav>
+
+  <dialog id="orderDialog">
+    <form id="orderForm" method="dialog">
+      <div class="dialog-head">
+        <div>
+          <div class="section-kicker">ЗАКАЗ</div>
+          <h2 id="orderDialogTitle">Новый заказ</h2>
+        </div>
+        <button type="button" id="closeOrderDialog" class="icon-btn">×</button>
+      </div>
+      <input id="orderId" type="hidden">
+      <label class="check-row"><input id="orderInProgress" type="checkbox"><span>В процессе</span></label>
+      <label>Номер заказа<input id="orderNumber" required placeholder="Например, 1056"></label>
+      <div class="two-cols">
+        <label>Дата начала<input id="startDate" type="date" required></label>
+        <label>Время начала
+          <div class="time-with-now"><input id="startTime" type="text" required placeholder="10:00" pattern="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$" maxlength="5"><button type="button" class="secondary now-btn set-now" data-target="startTime">Сейчас</button></div>
+        </label>
+      </div>
+      <div id="completionFields" class="two-cols">
+        <label>Дата окончания<input id="endDate" type="date"></label>
+        <label>Время окончания
+          <div class="time-with-now"><input id="endTime" type="text" placeholder="18:00" pattern="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$" maxlength="5"><button type="button" class="secondary now-btn set-now" data-target="endTime">Сейчас</button></div>
+        </label>
+      </div>
+      <div id="orderPausesSection">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h4 style="margin: 0; font-size: 14px;">Паузы <span id="orderPauseCount" class="count-badge">0</span></h4>
+          <div>
+            <button type="button" id="startOrderPauseBtn" class="secondary small">▶ Начало паузы</button>
+            <button type="button" id="endOrderPauseBtn" class="secondary small" style="margin-left: 4px;">■ Конец паузы</button>
+            <button type="button" id="clearOrderPausesBtn" class="danger small" style="margin-left: 4px;">Очистить</button>
+          </div>
+        </div>
+        <div id="orderPausesList" style="margin-top: 8px;"></div>
+        <div id="activePauseTimer" style="margin-top: 8px; padding: 8px; background: #fff0df; border-radius: 8px; border: 1px solid #e4bd95; display: none;">
+          <span style="font-weight: 700; color: var(--accent-dark);">⏱ Пауза активна: </span>
+          <span id="pauseTimerDisplay" style="font-weight: 700; font-size: 16px; color: var(--accent-dark);">00:00:00</span>
+        </div>
+      </div>
+      <label>Что сделано<textarea id="workDone" rows="3" placeholder="Обработка, присадка, сборка…"></textarea></label>
+      <label>Доход по заказу, ₽<input id="income" type="number" min="0" step="0.01" required><small id="incomeHelp" class="field-help hidden">Можно указать плановый доход. Пока заказ в процессе, он не учитывается.</small></label>
+      <label>Комментарий<textarea id="comment" rows="2"></textarea></label>
+      <div id="orderPreview" class="calculation-preview"></div>
+      <div class="dialog-actions">
+        <button type="button" id="deleteOrderBtn" class="danger hidden">Удалить</button>
+        <button type="submit" class="primary">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="seed.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
