@@ -1,5 +1,64 @@
-const CACHE="furniture-app-v3";
-const ASSETS=["./","index.html","styles.css","app.js","seed.js","manifest.json","icon-192.png","icon-512.png"];
-self.addEventListener("install",e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
-self.addEventListener("activate",e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
-self.addEventListener("fetch",e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(resp=>{const copy=resp.clone();caches.open(CACHE).then(c=>c.put(e.request,copy));return resp;}).catch(()=>caches.match("index.html")))));
+var CACHE = "furniture-v2";
+var ASSETS = [
+  "./",
+  "index.html",
+  "styles/base.css",
+  "styles/dashboard.css",
+  "styles/orders.css",
+  "styles/progress.css",
+  "styles/calendar.css",
+  "styles/settings.css",
+  "app.js",
+  "manifest.json",
+  "modules/utils.js",
+  "modules/dashboard.js",
+  "modules/orders.js",
+  "modules/progress.js",
+  "modules/calendar.js",
+  "modules/settings.js"
+];
+
+self.addEventListener("install", function(e) {
+  e.waitUntil(
+    caches.open(CACHE).then(function(c) {
+      return c.addAll(ASSETS);
+    }).then(function() {
+      return self.skipWaiting();
+    })
+  );
+});
+
+self.addEventListener("activate", function(e) {
+  e.waitUntil(
+    caches.keys().then(function(keys) {
+      return Promise.all(
+        keys.filter(function(key) {
+          return key !== CACHE;
+        }).map(function(key) {
+          return caches.delete(key);
+        })
+      );
+    }).then(function() {
+      return self.clients.claim();
+    })
+  );
+});
+
+self.addEventListener("fetch", function(e) {
+  e.respondWith(
+    caches.match(e.request).then(function(response) {
+      if (response) {
+        return response;
+      }
+      return fetch(e.request).then(function(resp) {
+        var copy = resp.clone();
+        caches.open(CACHE).then(function(c) {
+          c.put(e.request, copy);
+        });
+        return resp;
+      }).catch(function() {
+        return caches.match("index.html");
+      });
+    })
+  );
+});
