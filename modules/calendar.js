@@ -31,6 +31,8 @@ function renderCalendar() {
   html += '</div>';
   html += '<div class="today-actions">';
   html += '<button class="btn-start" id="todayStartBtn" ' + (wdToday.start && !wdToday.end ? 'disabled' : '') + '>Начать</button>';
+  html += '<button class="btn-pause" id="todayPauseBtn" ' + (!wdToday.start || wdToday.end || wdToday.pausedAt ? 'disabled' : '') + '>Пауза</button>';
+  html += '<button class="btn-resume" id="todayResumeBtn" ' + (!wdToday.start || wdToday.end || !wdToday.pausedAt ? 'disabled' : '') + '>Продолжить</button>';
   html += '<button class="btn-end" id="todayEndBtn" ' + (!wdToday.start || wdToday.end ? 'disabled' : '') + '>Закончить</button>';
   html += '</div>';
   html += '</div>';
@@ -84,7 +86,11 @@ function renderCalendar() {
   html += '</div>';
   html += '<div class="popup-field"><label>Начало смены</label><input type="text" id="popupStartTime" placeholder="10:00" maxlength="5"></div>';
   html += '<div class="popup-field"><label>Окончание смены</label><input type="text" id="popupEndTime" placeholder="18:00" maxlength="5"></div>';
-  html += '<div class="popup-pauses"><div class="pause-label">Паузы</div><div id="popupPausesContainer"></div></div>';
+  html += '<div class="popup-field"><label>Статус смены</label><div id="popupShiftStatus" style="font-size:14px;padding:8px 0;"></div></div>';
+  html += '<div class="popup-pauses">';
+  html += '<div class="pause-header"><span class="pause-label">Паузы</span><button class="small secondary" id="popupAddPauseBtn">+ Добавить</button></div>';
+  html += '<div id="popupPausesContainer"></div>';
+  html += '</div>';
   html += '<div class="popup-actions">';
   html += '<button class="secondary" id="popupSaveBtn">Сохранить</button>';
   html += '<button class="danger" id="popupClearBtn">Очистить</button>';
@@ -186,7 +192,42 @@ function renderCalendar() {
       };
       toast("Смена начата в " + t);
     }
+    
+    // При начале смены - возобновляем последний активный заказ
+    resumeLastActiveOrder();
+    
     saveState();
+    renderCalendar();
+    renderProgress();
+  };
+  document.getElementById("todayPauseBtn").onclick = function() {
+    var date = todayISO();
+    var wd = getDayWork(date);
+    if (!wd.start || wd.end || wd.pausedAt) {
+      toast("Нельзя поставить на паузу");
+      return;
+    }
+    var t = nowHHMM();
+    wd.pausedAt = t;
+    state.workDays[date] = wd;
+    saveState();
+    toast("Смена на паузе с " + t);
+    renderCalendar();
+  };
+  document.getElementById("todayResumeBtn").onclick = function() {
+    var date = todayISO();
+    var wd = getDayWork(date);
+    if (!wd.start || wd.end || !wd.pausedAt) {
+      toast("Нельзя продолжить");
+      return;
+    }
+    if (!wd.pauses) wd.pauses = [];
+    var t = nowHHMM();
+    wd.pauses.push({ start: wd.pausedAt, end: t });
+    wd.pausedAt = "";
+    state.workDays[date] = wd;
+    saveState();
+    toast("Смена продолжена в " + t);
     renderCalendar();
   };
   document.getElementById("todayEndBtn").onclick = function() {
@@ -212,19 +253,26 @@ function renderCalendar() {
     }
     wd.end = t;
     state.workDays[date] = wd;
+    
+    // При завершении смены - ставим все активные заказы на паузу
     var activeOrders = state.orders.filter(function(o) {
       return o.status === "in_progress" && !hasActivePause(o.id);
     });
+    var now = new Date();
+    var dateStr = now.toISOString().split('T')[0];
+    var timeStr = now.toTimeString().slice(0,5);
     for (var i = 0; i < activeOrders.length; i++) {
       var order = activeOrders[i];
       var pauses = getOrderPauses(order.id);
-      var pauseStart = date + "T" + t + ":00.000Z";
+      var pauseStart = dateStr + 'T' + timeStr + ':00.000Z';
       pauses.push({ start: pauseStart, end: null });
       saveOrderPauses(order.id, pauses);
     }
+    
     saveState();
     toast("Смена завершена в " + t + (activeOrders.length > 0 ? ", заказы на паузе" : ""));
     renderCalendar();
+    renderProgress();
   };
   container.querySelectorAll(".day-cell:not(.empty):not(.future)").forEach(function(cell) {
     cell.onclick = function() {
@@ -236,14 +284,37 @@ function renderCalendar() {
   document.getElementById("popupCloseBtn").onclick = function() {
     document.getElementById("dayDetailPopup").classList.remove("open");
   };
+  
+  document.getElementById("popupAddPauseBtn").onclick = function() {
+    if (!popupDate) return;
+    var wd = getDayWork(popupDate);
+    if (!wd.pauses) wd.pauses = [];
+    wd.pauses.push({ start: "", end: "" });
+    state.workDays[popupDate] = wd;
+    openDayDetail(popupDate);
+  };
+  
   document.getElementById("popupSaveBtn").onclick = function() {
     if (!popupDate) return;
     var start = document.getElementById("popupStartTime").value.trim();
     var end = document.getElementById("popupEndTime").value.trim();
     var wd = getDayWork(popupDate) || {};
+    
+    var pauseItems = document.querySelectorAll(".popup-pause-item");
+    var pauses = [];
+    for (var i = 0; i < pauseItems.length; i++) {
+      var item = pauseItems[i];
+      var ps = item.querySelector(".pause-start-input").value.trim();
+      var pe = item.querySelector(".pause-end-input").value.trim();
+      if (ps && pe) {
+        pauses.push({ start: ps, end: pe });
+      }
+    }
+    wd.pauses = pauses;
+    
     if (start && end) {
       if (parseTime(end) <= parseTime(start)) {
-        toast("Конец должен быть позже начала");
+        toast("Конец смены должен быть позже начала");
         return;
       }
       wd.start = start;
@@ -264,7 +335,6 @@ function renderCalendar() {
       renderCalendar();
       return;
     }
-    if (!wd.pauses) wd.pauses = [];
     state.workDays[popupDate] = wd;
     saveState();
     document.getElementById("dayDetailPopup").classList.remove("open");
@@ -292,16 +362,70 @@ function openDayDetail(dateISO) {
   var wd = getDayWork(dateISO);
   document.getElementById("popupStartTime").value = wd.start || "";
   document.getElementById("popupEndTime").value = wd.end || "";
+  
+  var statusEl = document.getElementById("popupShiftStatus");
+  var statusText = "Не начата";
+  if (wd.start && wd.end) statusText = "✅ Завершена";
+  else if (wd.start && wd.pausedAt) statusText = "⏸ На паузе (с " + wd.pausedAt + ")";
+  else if (wd.start) statusText = "🟢 Работает";
+  statusEl.textContent = statusText;
+  
   var pauses = wd.pauses || [];
   var container = document.getElementById("popupPausesContainer");
   if (pauses.length === 0) {
-    container.innerHTML = '<div class="pause-empty">Нет пауз</div>';
+    container.innerHTML = '<div class="pause-empty">Нет пауз. Нажмите "+ Добавить"</div>';
   } else {
     var html = "";
     for (var i = 0; i < pauses.length; i++) {
-      html += '<div class="pause-item"><span>Пауза ' + (i+1) + '</span><span>' + pauses[i].start + ' → ' + (pauses[i].end || '...') + '</span></div>';
+      var p = pauses[i];
+      html += '<div class="popup-pause-item" data-index="' + i + '">';
+      html += '<div class="popup-pause-row">';
+      html += '<div class="popup-pause-col">';
+      html += '<label>Начало</label>';
+      html += '<input type="text" class="pause-start-input" value="' + escapeHtml(p.start || "") + '" placeholder="10:00" maxlength="5">';
+      html += '</div>';
+      html += '<div class="popup-pause-col">';
+      html += '<label>Окончание</label>';
+      html += '<input type="text" class="pause-end-input" value="' + escapeHtml(p.end || "") + '" placeholder="18:00" maxlength="5">';
+      html += '</div>';
+      html += '<div class="popup-pause-actions">';
+      html += '<button class="small danger pause-delete-btn" data-index="' + i + '">✕</button>';
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
     }
     container.innerHTML = html;
+    
+    container.querySelectorAll('.pause-delete-btn').forEach(function(btn) {
+      btn.onclick = function() {
+        var index = parseInt(this.dataset.index);
+        var pauses = getDayWork(popupDate).pauses || [];
+        pauses.splice(index, 1);
+        var wd = getDayWork(popupDate);
+        wd.pauses = pauses;
+        state.workDays[popupDate] = wd;
+        openDayDetail(popupDate);
+      };
+    });
+    
+    container.querySelectorAll('.pause-start-input, .pause-end-input').forEach(function(input) {
+      input.onblur = function() {
+        var val = this.value.trim();
+        if (!val) return;
+        var parts = val.replace(':', '').split('');
+        if (parts.length === 4) {
+          this.value = parts.slice(0,2).join('') + ':' + parts.slice(2).join('');
+        } else if (parts.length === 3) {
+          this.value = parts.slice(0,2).join('') + ':' + parts.slice(2).join('') + '0';
+        } else if (parts.length === 2) {
+          this.value = parts.join('') + ':00';
+        }
+      };
+      input.oninput = function() {
+        var val = this.value;
+        if (val.length > 5) this.value = val.slice(0, 5);
+      };
+    });
   }
   document.getElementById("dayDetailPopup").classList.add("open");
 }

@@ -1,4 +1,4 @@
-var STORAGE_KEY = "furniture-app-v1";
+var STORAGE_KEY = "worktracker-app-v1";
 var MONTHS = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
 
 var state = loadState();
@@ -11,10 +11,27 @@ function loadState() {
       if (parsed.orders && parsed.settings) {
         if (!parsed.orderPauses) parsed.orderPauses = {};
         if (!parsed.workDays) parsed.workDays = {};
+        if (!parsed.lastActiveOrder) parsed.lastActiveOrder = null;
+        // Убеждаемся, что все паузы в workDays корректны
+        for (var key in parsed.workDays) {
+          var wd = parsed.workDays[key];
+          if (!wd.pauses) wd.pauses = [];
+          if (!Array.isArray(wd.pauses)) wd.pauses = [];
+        }
+        // Убеждаемся, что все паузы в orderPauses корректны
+        for (var orderId in parsed.orderPauses) {
+          if (!Array.isArray(parsed.orderPauses[orderId])) {
+            parsed.orderPauses[orderId] = [];
+          }
+        }
         return parsed;
       }
     }
-  } catch(e) {}
+  } catch(e) {
+    console.warn("Ошибка загрузки данных, создаем новые:", e);
+  }
+  
+  // Создаем тестовые данные
   var today = new Date();
   var yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -27,7 +44,7 @@ function loadState() {
       endTime: "18:00",
       startDate: yIso,
       endDate: yIso,
-      work: "Сборка шкафа",
+      work: "Сборка конструкции",
       income: 5000,
       comment: "",
       status: "completed",
@@ -48,12 +65,18 @@ function loadState() {
     }
   ];
   var testWorkDays = {};
-  testWorkDays[yIso] = { start: "10:00", end: "18:00", pausedAt: "", pauses: [] };
+  testWorkDays[yIso] = { 
+    start: "10:00", 
+    end: "18:00", 
+    pausedAt: "", 
+    pauses: [] 
+  };
   var testData = {
     orders: testOrders,
     settings: { standardStart: "10:00", standardEnd: "18:00" },
     workDays: testWorkDays,
-    orderPauses: {}
+    orderPauses: {},
+    lastActiveOrder: null
   };
   return testData;
 }
@@ -134,7 +157,7 @@ function workIntervalsForDate(date) {
       var cursor = start;
       for (var i = 0; i < pauses.length; i++) {
         var ps = parseTime(pauses[i].start);
-        var pe = parseTime(pauses[i].end);
+        var pe = pauses[i].end ? parseTime(pauses[i].end) : 0;
         if (ps > cursor && ps < end) intervals.push([cursor, Math.min(ps, end)]);
         if (pe > cursor) cursor = Math.max(cursor, pe);
       }
@@ -196,7 +219,7 @@ function getOrderPauses(orderId) {
 
 function saveOrderPauses(orderId, pauses) {
   if (!state.orderPauses) state.orderPauses = {};
-  if (pauses.length === 0) {
+  if (!pauses || pauses.length === 0) {
     delete state.orderPauses[orderId];
   } else {
     state.orderPauses[orderId] = pauses;
@@ -251,4 +274,52 @@ function getOrderPauseHoursOnDate(orderId, dateISO) {
     }
   }
   return totalPauseHours;
+}
+
+// Функции для работы с последним активным заказом
+function setLastActiveOrder(orderId) {
+  if (!state.lastActiveOrder) state.lastActiveOrder = {};
+  state.lastActiveOrder.id = orderId;
+  state.lastActiveOrder.updatedAt = new Date().toISOString();
+  saveState();
+}
+
+function getLastActiveOrder() {
+  return state.lastActiveOrder || null;
+}
+
+function resumeLastActiveOrder() {
+  var last = getLastActiveOrder();
+  if (!last || !last.id) return;
+  
+  // Проверяем, существует ли заказ и в процессе ли он
+  var order = state.orders.find(function(o) { return o.id === last.id; });
+  if (!order || order.status !== "in_progress") return;
+  
+  // Проверяем, есть ли у заказа активная пауза
+  var pauses = getOrderPauses(order.id);
+  var hasActivePause = false;
+  var pauseIndex = -1;
+  for (var i = 0; i < pauses.length; i++) {
+    if (pauses[i].start && !pauses[i].end) {
+      hasActivePause = true;
+      pauseIndex = i;
+      break;
+    }
+  }
+  
+  if (hasActivePause) {
+    // Снимаем паузу
+    var now = new Date();
+    var dateStr = now.toISOString().split('T')[0];
+    var timeStr = now.toTimeString().slice(0,5);
+    pauses[pauseIndex].end = dateStr + 'T' + timeStr + ':00.000Z';
+    saveOrderPauses(order.id, pauses);
+    
+    // Ставим все остальные заказы на паузу
+    pauseAllOtherOrders(order.id);
+    
+    toast("Возобновлен заказ " + order.number);
+    renderProgress();
+  }
 }

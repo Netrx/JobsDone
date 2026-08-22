@@ -24,6 +24,7 @@ function renderProgress() {
     var completion = o.endDate ? formatDate(o.endDate) + (o.endTime ? " в " + o.endTime : "") : "Не указано";
     var hasPause = hasActivePause(o.id);
     var pausedClass = hasPause ? ' paused' : '';
+    var isActive = !hasPause;
     html += '<div class="order-card progress' + pausedClass + '" data-id="' + o.id + '">';
     html += '<div><div class="order-title">Заказ ' + escapeHtml(o.number);
     if (hasPause) {
@@ -33,15 +34,49 @@ function renderProgress() {
     }
     html += '</div>';
     html += '<div class="order-work">' + escapeHtml(o.work || "Без описания") + '</div>';
-    html += '<div class="order-meta"><span>' + formatDate(o.startDate) + ' → ' + completion + '</span><span>' + formatHoursMinutes(h) + ' на сегодня</span></div></div>';
-    html += '<div class="order-money">Не учтён<small>' + escapeHtml(o.comment || "") + '</small></div>';
+    html += '<div class="order-meta"><span>' + formatDate(o.startDate) + ' → ' + completion + '</span><span>' + formatHoursMinutes(h) + ' на сегодня</span></div>';
+    html += '</div>';
+    html += '<div class="order-actions">';
+    if (hasPause) {
+      html += '<button class="resume-btn small primary" data-id="' + o.id + '">Возобновить</button>';
+    } else {
+      html += '<button class="pause-btn small secondary" data-id="' + o.id + '">На паузу</button>';
+    }
+    html += '</div>';
     html += '</div>';
   }
   list.innerHTML = html;
   var cards = list.querySelectorAll(".order-card");
   for (var i = 0; i < cards.length; i++) {
-    cards[i].onclick = function() { openOrder(this.dataset.id); };
+    cards[i].onclick = function(e) {
+      if (e.target.closest('button')) return;
+      openOrder(this.dataset.id);
+    };
   }
+  // Обработчики для кнопок
+  list.querySelectorAll('.resume-btn').forEach(function(btn) {
+    btn.onclick = function(e) {
+      e.stopPropagation();
+      var orderId = this.dataset.id;
+      resumeOrder(orderId);
+    };
+  });
+  list.querySelectorAll('.pause-btn').forEach(function(btn) {
+    btn.onclick = function(e) {
+      e.stopPropagation();
+      var orderId = this.dataset.id;
+      var pauses = getOrderPauses(orderId);
+      var now = new Date();
+      var dateStr = now.toISOString().split('T')[0];
+      var timeStr = now.toTimeString().slice(0,5);
+      pauses.push({ start: dateStr + 'T' + timeStr + ':00.000Z', end: null });
+      saveOrderPauses(orderId, pauses);
+      // Ставим все остальные на паузу
+      pauseAllOtherOrders(orderId);
+      renderProgress();
+      toast("Заказ на паузе");
+    };
+  });
 }
 
 document.getElementById("progressSearch").oninput = renderProgress;

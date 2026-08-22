@@ -1,4 +1,4 @@
-var CACHE = "furniture-v2";
+var CACHE = "worktracker-v2";
 var ASSETS = [
   "./",
   "index.html",

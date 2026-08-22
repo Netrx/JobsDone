@@ -140,10 +140,22 @@ function syncStatusFields() {
   }
 }
 
+function getActiveOrderId() {
+  var activeOrders = state.orders.filter(function(o) {
+    if (o.status !== "in_progress") return false;
+    return !hasActivePause(o.id);
+  });
+  if (activeOrders.length === 0) return null;
+  return activeOrders[0].id;
+}
+
 function pauseAllOtherOrders(orderId) {
   var allOrders = state.orders.filter(function(o) {
     return o.id !== orderId && o.status === "in_progress";
   });
+  var now = new Date();
+  var dateStr = now.toISOString().split('T')[0];
+  var timeStr = now.toTimeString().slice(0,5);
   for (var i = 0; i < allOrders.length; i++) {
     var o = allOrders[i];
     var pauses = getOrderPauses(o.id);
@@ -155,13 +167,37 @@ function pauseAllOtherOrders(orderId) {
       }
     }
     if (!hasActive) {
-      var now = new Date();
-      var dateStr = now.toISOString().split('T')[0];
-      var timeStr = now.toTimeString().slice(0,5);
       pauses.push({ start: dateStr + 'T' + timeStr + ':00.000Z', end: null });
       saveOrderPauses(o.id, pauses);
     }
   }
+}
+
+function resumeOrder(orderId) {
+  // Ставим все остальные заказы на паузу
+  pauseAllOtherOrders(orderId);
+  // Снимаем паузу с выбранного заказа
+  var pauses = getOrderPauses(orderId);
+  var activePauseIndex = -1;
+  for (var i = 0; i < pauses.length; i++) {
+    if (pauses[i].start && !pauses[i].end) {
+      activePauseIndex = i;
+      break;
+    }
+  }
+  if (activePauseIndex !== -1) {
+    var now = new Date();
+    var dateStr = now.toISOString().split('T')[0];
+    var timeStr = now.toTimeString().slice(0,5);
+    pauses[activePauseIndex].end = dateStr + 'T' + timeStr + ':00.000Z';
+    saveOrderPauses(orderId, pauses);
+  }
+  
+  // Запоминаем как последний активный заказ
+  setLastActiveOrder(orderId);
+  
+  renderProgress();
+  toast("Заказ возобновлен, остальные на паузе");
 }
 
 function parseTimeFromInput(value) {
@@ -226,7 +262,7 @@ function renderOrderPauses(order) {
     html += '<div class="pause-actions-col">';
     if (duration) html += '<span class="pause-duration">' + duration + '</span>';
     if (!pause.end) {
-      html += '<button type="button" class="small pause-end-btn" data-order-id="' + order.id + '" data-pause-index="' + i + '">Снять</button>';
+      html += '<button type="button" class="small pause-resume-btn" data-order-id="' + order.id + '" data-pause-index="' + i + '">Возобновить</button>';
     } else {
       html += '<button type="button" class="small danger pause-delete" data-order-id="' + order.id + '" data-pause-index="' + i + '">✕</button>';
     }
@@ -298,7 +334,7 @@ function renderOrderPauses(order) {
         return;
       }
       if (!pauses[index].end) {
-        toast("Сначала завершите паузу через кнопку 'Снять'");
+        toast("Сначала завершите паузу через кнопку 'Возобновить'");
         return;
       }
       var time = pauses[index].end.split('T')[1] || '00:00:00.000Z';
@@ -336,7 +372,7 @@ function renderOrderPauses(order) {
         return;
       }
       if (!pauses[index].end) {
-        toast("Сначала завершите паузу через кнопку 'Снять'");
+        toast("Сначала завершите паузу через кнопку 'Возобновить'");
         return;
       }
       var dateStr = pauses[index].end.split('T')[0];
@@ -348,7 +384,7 @@ function renderOrderPauses(order) {
     };
   });
   
-  container.querySelectorAll('.pause-end-btn').forEach(function(btn) {
+  container.querySelectorAll('.pause-resume-btn').forEach(function(btn) {
     btn.onclick = function() {
       var orderId = this.dataset.orderId;
       var index = parseInt(this.dataset.pauseIndex);
@@ -358,11 +394,14 @@ function renderOrderPauses(order) {
       var timeStr = now.toTimeString().slice(0,5);
       pauses[index].end = dateStr + 'T' + timeStr + ':00.000Z';
       saveOrderPauses(orderId, pauses);
+      // Ставим все остальные заказы на паузу
+      pauseAllOtherOrders(orderId);
+      // Запоминаем как последний активный заказ
+      setLastActiveOrder(orderId);
       var order = state.orders.find(function(o) { return o.id === orderId; });
       if (order) renderOrderPauses(order);
-      pauseAllOtherOrders(orderId);
       renderProgress();
-      toast("Пауза снята");
+      toast("Заказ возобновлен, остальные на паузе");
     };
   });
   
@@ -498,7 +537,7 @@ document.getElementById("addOrderPauseBtn").onclick = function() {
     }
   }
   if (hasActive) {
-    toast("У заказа уже есть активная пауза. Сначала снимите её.");
+    toast("У заказа уже есть активная пауза. Сначала возобновите его.");
     return;
   }
   var now = new Date();
@@ -530,12 +569,33 @@ document.getElementById("orderForm").onsubmit = function(e) {
   } else {
     state.orders.push(o);
   }
+  
+  // Если заказ в процессе - ставим его на паузу по умолчанию
   if (o.status === "in_progress") {
+    // Ставим все остальные заказы на паузу
     pauseAllOtherOrders(o.id);
+    // Проверяем, есть ли у этого заказа активная пауза
+    var pauses = getOrderPauses(o.id);
+    var hasActivePause = false;
+    for (var p = 0; p < pauses.length; p++) {
+      if (pauses[p].start && !pauses[p].end) {
+        hasActivePause = true;
+        break;
+      }
+    }
+    // Если нет активной паузы - создаем её (заказ по умолчанию на паузе)
+    if (!hasActivePause) {
+      var now = new Date();
+      var dateStr = now.toISOString().split('T')[0];
+      var timeStr = now.toTimeString().slice(0,5);
+      pauses.push({ start: dateStr + 'T' + timeStr + ':00.000Z', end: null });
+      saveOrderPauses(o.id, pauses);
+    }
   }
+  
   saveState();
   document.getElementById("orderDialog").close();
-  toast("Заказ сохранён");
+  toast("Заказ сохранён" + (o.status === "in_progress" ? " (по умолчанию на паузе)" : ""));
 };
 
 document.getElementById("deleteOrderBtn").onclick = function() {
