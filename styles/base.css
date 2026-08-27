@@ -259,3 +259,207 @@ dialog label input, dialog label textarea { margin-top: 6px; font-weight: 400; c
     border-radius: var(--radius) var(--radius) 0 0;
   }
 }
+
+/* Стили для двух колонок в диалоге */
+.two-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.two-cols label {
+  margin-bottom: 14px;
+}
+
+.two-cols label:last-child {
+  margin-bottom: 14px;
+}
+
+@media (max-width: 480px) {
+  .two-cols {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+/* Стили для кнопки установки */
+#installBtn {
+  display: none;
+  background: var(--accent);
+  color: var(--surface);
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 36px;
+}
+
+#installBtn:not(.hidden) {
+  display: block !important;
+}
+
+#installBtn:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+
+#installBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+#installBtn.installed {
+  background: var(--surface-hover);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+/* Для iOS */
+@supports (-webkit-touch-callout: none) {
+  #installBtn {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Стили для select в тулбаре */
+.toolbar select {
+  width: auto;
+  min-width: 80px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  transition: background var(--transition), border var(--transition);
+  min-height: 36px;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  padding-right: 32px;
+}
+
+.toolbar select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+[data-theme="dark"] .toolbar select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+
+/* Стили для input type date/time в темной теме */
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="time"] {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
+[data-theme="dark"] input[type="date"]::-moz-calendar-picker-indicator,
+[data-theme="dark"] input[type="time"]::-moz-calendar-picker-indicator {
+  filter: invert(1);
+}
+
+/* Стили для скроллбара в диалогах */
+dialog form::-webkit-scrollbar {
+  width: 4px;
+}
+
+dialog form::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+dialog form::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 99px;
+}
+
+/* Стили для disabled кнопок */
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Стили для инпутов в диалоге */
+dialog input[type="text"],
+dialog input[type="number"],
+dialog input[type="date"],
+dialog input[type="time"],
+dialog textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+  transition: border var(--transition), background var(--transition);
+  font-family: var(--font);
+}
+
+dialog input[type="text"]:focus,
+dialog input[type="number"]:focus,
+dialog input[type="date"]:focus,
+dialog input[type="time"]:focus,
+dialog textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(44,44,44,0.06);
+}
+
+[data-theme="dark"] dialog input[type="text"]:focus,
+[data-theme="dark"] dialog input[type="number"]:focus,
+[data-theme="dark"] dialog input[type="date"]:focus,
+[data-theme="dark"] dialog input[type="time"]:focus,
+[data-theme="dark"] dialog textarea:focus {
+  box-shadow: 0 0 0 3px rgba(224,224,224,0.08);
+}
+
+/* Стили для кнопок в диалоге */
+.dialog-actions .primary {
+  background: var(--accent);
+  color: var(--surface);
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition);
+  min-height: 38px;
+}
+
+.dialog-actions .primary:hover {
+  background: var(--accent-hover);
+}
+
+.dialog-actions .danger {
+  background: var(--danger);
+  color: white;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition);
+  min-height: 38px;
+}
+
+.dialog-actions .danger:hover {
+  background: var(--danger-hover);
+}

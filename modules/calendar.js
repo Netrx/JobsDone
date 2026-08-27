@@ -78,6 +78,25 @@ function renderCalendar() {
     html += '</div>';
   }
   html += '</div>';
+
+  // --- БЛОК: Отработано в этом месяце ---
+  var totalMonthHours = 0;
+  for (var d = 1; d <= daysInMonth; d++) {
+    var dateObj = new Date(year, month, d);
+    var iso = toISODate(dateObj);
+    // Если день в будущем, не считаем (или считаем только если есть данные)
+    // Лучше считать только те дни, которые уже прошли или есть запись
+    var wd = getDayWork(iso);
+    if (wd.start && wd.end) {
+      totalMonthHours += getWorkedHoursForDate(iso);
+    }
+  }
+  html += '<div class="month-total">';
+  html += '<span class="month-total-label">Отработано в этом месяце</span>';
+  html += '<span class="month-total-value">' + formatHoursMinutes(totalMonthHours) + '</span>';
+  html += '</div>';
+  // --- Конец блока ---
+
   html += '<div class="day-detail-popup" id="dayDetailPopup">';
   html += '<div class="popup-card">';
   html += '<div class="popup-head">';

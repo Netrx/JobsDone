@@ -3,10 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#1a1a1a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Учет работы">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
 <title>Учет работы</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
@@ -24,7 +26,7 @@
 <body>
 
 <header class="topbar">
-  <button id="installBtn" class="ghost hidden">Установить</button>
+  <button id="installBtn" class="ghost hidden" style="display:none;">📲 Установить</button>
 </header>
 
 <main>
@@ -177,14 +179,27 @@
     <input id="orderId" type="hidden">
     <label class="check-row"><input id="orderInProgress" type="checkbox"><span>В процессе</span></label>
     <label>Номер заказа <input id="orderNumber" required placeholder="Например, 1056"></label>
+
+    <!-- Две группы с одной кнопкой "Сейчас" каждая -->
     <div class="two-cols">
-      <label>Дата начала <input id="startDate" type="date" required></label>
-      <label>Время начала <input id="startTime" type="text" required placeholder="10:00" maxlength="5"></label>
+      <div class="field-group">
+        <label>Начало</label>
+        <div class="field-row">
+          <input id="startDate" type="date" required>
+          <input id="startTime" type="text" required placeholder="10:00" maxlength="5">
+          <button type="button" class="now-btn" data-group="start">Сейчас</button>
+        </div>
+      </div>
+      <div class="field-group" id="completionFields">
+        <label>Окончание</label>
+        <div class="field-row">
+          <input id="endDate" type="date">
+          <input id="endTime" type="text" placeholder="18:00" maxlength="5">
+          <button type="button" class="now-btn" data-group="end">Сейчас</button>
+        </div>
+      </div>
     </div>
-    <div id="completionFields" class="two-cols">
-      <label>Дата окончания <input id="endDate" type="date"></label>
-      <label>Время окончания <input id="endTime" type="text" placeholder="18:00" maxlength="5"></label>
-    </div>
+
     <label class="textarea-label">Что сделано <textarea id="workDone" rows="3" placeholder="Описание выполненной работы…"></textarea></label>
     <label>Доход по заказу, ₽ <input id="income" type="number" min="0" step="0.01" required></label>
     <label class="textarea-label">Комментарий <textarea id="comment" rows="2"></textarea></label>

@@ -313,7 +313,68 @@
   filter: invert(1);
 }
 
+/* Стили для групп с одной кнопкой "Сейчас" */
+.field-group {
+  margin-bottom: 14px;
+}
+
+.field-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-row input[type="date"],
+.field-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.now-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 36px;
+  touch-action: manipulation;
+  flex-shrink: 0;
+}
+
+.now-btn:hover {
+  background: var(--border);
+}
+
+/* Адаптив для мобильных */
 @media (max-width: 480px) {
+  .field-row {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .field-row input[type="date"],
+  .field-row input[type="text"] {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 70px;
+  }
+  .now-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+    min-height: 32px;
+    flex: 0 0 auto;
+  }
+
+  /* Остальные адаптивные правки */
   .order-card {
     padding: 12px;
     gap: 8px;
@@ -332,19 +393,16 @@
     font-size: 9px;
     padding: 2px 8px;
   }
-  
   .pause-inputs input[type="date"] {
     font-size: 15px;
     min-height: 44px;
     padding: 10px 12px;
   }
-  
   .pause-inputs input[type="time"] {
     font-size: 15px;
     min-height: 44px;
     padding: 10px 12px;
   }
-  
   .pause-actions-col .small {
     font-size: 13px;
     padding: 8px 14px;

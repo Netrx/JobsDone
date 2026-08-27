@@ -174,9 +174,7 @@ function pauseAllOtherOrders(orderId) {
 }
 
 function resumeOrder(orderId) {
-  // Ставим все остальные заказы на паузу
   pauseAllOtherOrders(orderId);
-  // Снимаем паузу с выбранного заказа
   var pauses = getOrderPauses(orderId);
   var activePauseIndex = -1;
   for (var i = 0; i < pauses.length; i++) {
@@ -192,10 +190,7 @@ function resumeOrder(orderId) {
     pauses[activePauseIndex].end = dateStr + 'T' + timeStr + ':00.000Z';
     saveOrderPauses(orderId, pauses);
   }
-  
-  // Запоминаем как последний активный заказ
   setLastActiveOrder(orderId);
-  
   renderProgress();
   toast("Заказ возобновлен, остальные на паузе");
 }
@@ -394,9 +389,7 @@ function renderOrderPauses(order) {
       var timeStr = now.toTimeString().slice(0,5);
       pauses[index].end = dateStr + 'T' + timeStr + ':00.000Z';
       saveOrderPauses(orderId, pauses);
-      // Ставим все остальные заказы на паузу
       pauseAllOtherOrders(orderId);
-      // Запоминаем как последний активный заказ
       setLastActiveOrder(orderId);
       var order = state.orders.find(function(o) { return o.id === orderId; });
       if (order) renderOrderPauses(order);
@@ -570,11 +563,8 @@ document.getElementById("orderForm").onsubmit = function(e) {
     state.orders.push(o);
   }
   
-  // Если заказ в процессе - ставим его на паузу по умолчанию
   if (o.status === "in_progress") {
-    // Ставим все остальные заказы на паузу
     pauseAllOtherOrders(o.id);
-    // Проверяем, есть ли у этого заказа активная пауза
     var pauses = getOrderPauses(o.id);
     var hasActivePause = false;
     for (var p = 0; p < pauses.length; p++) {
@@ -583,7 +573,6 @@ document.getElementById("orderForm").onsubmit = function(e) {
         break;
       }
     }
-    // Если нет активной паузы - создаем её (заказ по умолчанию на паузе)
     if (!hasActivePause) {
       var now = new Date();
       var dateStr = now.toISOString().split('T')[0];
@@ -618,3 +607,35 @@ document.getElementById("addProgressBtn").onclick = function() {
   document.getElementById("orderInProgress").checked = true;
   syncStatusFields();
 };
+
+// Обработчик для кнопок "Сейчас" – одна кнопка на группу
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('.now-btn');
+  if (!btn) return;
+
+  var group = btn.dataset.group; // 'start' или 'end'
+  if (!group) return;
+
+  var dateInput, timeInput;
+  if (group === 'start') {
+    dateInput = document.getElementById('startDate');
+    timeInput = document.getElementById('startTime');
+  } else if (group === 'end') {
+    dateInput = document.getElementById('endDate');
+    timeInput = document.getElementById('endTime');
+  } else {
+    return;
+  }
+
+  if (dateInput) dateInput.value = todayISO();
+  if (timeInput) timeInput.value = nowHHMM();
+
+  [dateInput, timeInput].forEach(function(input) {
+    if (input) {
+      input.style.borderColor = 'var(--accent)';
+      setTimeout(function() {
+        input.style.borderColor = '';
+      }, 800);
+    }
+  });
+});
