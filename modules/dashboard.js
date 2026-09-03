@@ -96,7 +96,8 @@ function analyticsWithRange() {
     for (var d = new Date(start); d <= end; d = addDays(d, 1)) {
       var iso = toISODate(d);
       if (order.status === "in_progress" && iso > todayISO()) continue;
-      var hours = orderHoursOnDate(order, iso);
+      // ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ РАСЧЁТА ЧАСОВ
+      var hours = getOrderHoursForDate(order, iso);
       if (hours > 0 && workDays[iso]) {
         dailyHours[iso] = hours;
         totalOrderHours += hours;

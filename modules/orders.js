@@ -108,7 +108,8 @@ function renderOrders() {
   var html = "";
   for (var i = 0; i < rows.length; i++) {
     var o = rows[i];
-    var h = orderHours(o);
+    // ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ РАСЧЁТА ЧАСОВ
+    var h = calculateOrderHours(o);
     var per = h > 0 ? (Number(o.income) || 0) / h : 0;
     var completion = o.endDate ? formatDate(o.endDate) + (o.endTime ? " в " + o.endTime : "") : "Не указано";
     html += '<div class="order-card" data-id="' + o.id + '">';
@@ -413,47 +414,18 @@ function renderOrderPauses(order) {
   });
 }
 
+// УСТАРЕВШАЯ ФУНКЦИЯ — больше не используется, но оставлена для совместимости
 function orderHoursOnDate(order, iso) {
-  var workIntervals = workIntervalsForDate(iso);
-  if (workIntervals.length === 0) return 0;
-  var isFirst = iso === order.startDate;
-  var isLast = iso === order.endDate || (order.status === "in_progress" && iso === todayISO());
-  var orderStart = isFirst ? parseTime(order.startTime) : 0;
-  var now = new Date();
-  var currentHour = now.getHours() + now.getMinutes() / 60;
-  var orderEnd = (order.status === "in_progress" && iso === todayISO()) ? currentHour : (isLast ? parseTime(order.endTime) : 24);
-  if (order.status === "in_progress" && iso > todayISO()) return 0;
-  if (orderEnd <= orderStart) return 0;
-  var total = 0;
-  for (var i = 0; i < workIntervals.length; i++) {
-    var start = workIntervals[i][0];
-    var end = workIntervals[i][1];
-    var overlapStart = Math.max(start, orderStart);
-    var overlapEnd = Math.min(end, orderEnd);
-    if (overlapEnd > overlapStart) {
-      var intervalHours = overlapEnd - overlapStart;
-      var pauseHours = getOrderPauseHoursOnDate(order.id, iso);
-      intervalHours -= pauseHours;
-      total += Math.max(0, intervalHours);
-    }
-  }
-  return total;
+  // Эта функция больше не используется, используйте getOrderHoursForDate из utils.js
+  console.warn("orderHoursOnDate устарела, используйте getOrderHoursForDate");
+  return getOrderHoursForDate(order, iso);
 }
 
+// УСТАРЕВШАЯ ФУНКЦИЯ — больше не используется
 function orderHours(order) {
-  if (!order.startDate) return 0;
-  var endIso = order.endDate || todayISO();
-  var start = parseDate(order.startDate);
-  var end = parseDate(endIso);
-  if (end < start) return 0;
-  var total = 0;
-  for (var d = new Date(start); d <= end; d = addDays(d, 1)) {
-    var iso = toISODate(d);
-    if (order.status === "in_progress" && iso > todayISO()) continue;
-    var hours = orderHoursOnDate(order, iso);
-    total += hours;
-  }
-  return total;
+  // Эта функция больше не используется, используйте calculateOrderHours из utils.js
+  console.warn("orderHours устарела, используйте calculateOrderHours");
+  return calculateOrderHours(order);
 }
 
 function openOrder(id) {
@@ -608,12 +580,11 @@ document.getElementById("addProgressBtn").onclick = function() {
   syncStatusFields();
 };
 
-// Обработчик для кнопок "Сейчас" – одна кнопка на группу
 document.addEventListener('click', function(e) {
   var btn = e.target.closest('.now-btn');
   if (!btn) return;
 
-  var group = btn.dataset.group; // 'start' или 'end'
+  var group = btn.dataset.group;
   if (!group) return;
 
   var dateInput, timeInput;

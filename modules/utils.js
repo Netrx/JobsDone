@@ -12,13 +12,11 @@ function loadState() {
         if (!parsed.orderPauses) parsed.orderPauses = {};
         if (!parsed.workDays) parsed.workDays = {};
         if (!parsed.lastActiveOrder) parsed.lastActiveOrder = null;
-        // Убеждаемся, что все паузы в workDays корректны
         for (var key in parsed.workDays) {
           var wd = parsed.workDays[key];
           if (!wd.pauses) wd.pauses = [];
           if (!Array.isArray(wd.pauses)) wd.pauses = [];
         }
-        // Убеждаемся, что все паузы в orderPauses корректны
         for (var orderId in parsed.orderPauses) {
           if (!Array.isArray(parsed.orderPauses[orderId])) {
             parsed.orderPauses[orderId] = [];
@@ -31,7 +29,6 @@ function loadState() {
     console.warn("Ошибка загрузки данных, создаем новые:", e);
   }
   
-  // Создаем тестовые данные
   var today = new Date();
   var yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -101,6 +98,9 @@ function money(value) {
 }
 
 function formatHoursMinutes(hoursDecimal) {
+  if (hoursDecimal === undefined || hoursDecimal === null || isNaN(hoursDecimal)) {
+    return "0 ч 0 м";
+  }
   var h = Math.floor(hoursDecimal);
   var m = Math.round((hoursDecimal - h) * 60);
   if (h === 0 && m === 0) return "0 ч 0 м";
@@ -276,7 +276,6 @@ function getOrderPauseHoursOnDate(orderId, dateISO) {
   return totalPauseHours;
 }
 
-// Функции для работы с последним активным заказом
 function setLastActiveOrder(orderId) {
   if (!state.lastActiveOrder) state.lastActiveOrder = {};
   state.lastActiveOrder.id = orderId;
@@ -292,11 +291,9 @@ function resumeLastActiveOrder() {
   var last = getLastActiveOrder();
   if (!last || !last.id) return;
   
-  // Проверяем, существует ли заказ и в процессе ли он
   var order = state.orders.find(function(o) { return o.id === last.id; });
   if (!order || order.status !== "in_progress") return;
   
-  // Проверяем, есть ли у заказа активная пауза
   var pauses = getOrderPauses(order.id);
   var hasActivePause = false;
   var pauseIndex = -1;
@@ -309,17 +306,166 @@ function resumeLastActiveOrder() {
   }
   
   if (hasActivePause) {
-    // Снимаем паузу
     var now = new Date();
     var dateStr = now.toISOString().split('T')[0];
     var timeStr = now.toTimeString().slice(0,5);
     pauses[pauseIndex].end = dateStr + 'T' + timeStr + ':00.000Z';
     saveOrderPauses(order.id, pauses);
-    
-    // Ставим все остальные заказы на паузу
     pauseAllOtherOrders(order.id);
-    
     toast("Возобновлен заказ " + order.number);
     renderProgress();
+  }
+}
+
+// ============================================================
+// НОВАЯ ФУНКЦИЯ: расчёт часов по заказу с учётом пауз
+// ============================================================
+function calculateOrderHours(order) {
+  if (!order || !order.startDate) return 0;
+  
+  var startDate = parseDate(order.startDate);
+  var endDate = order.endDate ? parseDate(order.endDate) : new Date();
+  
+  // Если заказ в процессе, считаем до текущего момента
+  if (order.status === "in_progress") {
+    endDate = new Date();
+  }
+  
+  // Округляем до начала дня
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(0, 0, 0, 0);
+  
+  var totalHours = 0;
+  var currentDate = new Date(startDate);
+  
+  while (currentDate <= endDate) {
+    var dateISO = toISODate(currentDate);
+    totalHours += getOrderHoursForDate(order, dateISO);
+    currentDate = addDays(currentDate, 1);
+  }
+  
+  return Math.round(totalHours * 100) / 100;
+}
+
+// ============================================================
+// НОВАЯ ФУНКЦИЯ: часы по заказу за конкретную дату
+// ============================================================
+function getOrderHoursForDate(order, dateISO) {
+  // 1. Проверяем, есть ли рабочая смена в этот день
+  var shift = state.workDays && state.workDays[dateISO];
+  if (!shift || !shift.start || !shift.end) {
+    return 0;
+  }
+  
+  // 2. Определяем время работы по заказу в этот день
+  var orderStartTime = 0;
+  var orderEndTime = 24; // 24 часа
+  
+  // Если это первый день заказа, начало = время начала заказа
+  if (dateISO === order.startDate) {
+    orderStartTime = parseTime(order.startTime || "00:00");
+  }
+  
+  // Если это последний день заказа, конец = время окончания заказа
+  if (order.status === "completed" && dateISO === order.endDate) {
+    orderEndTime = parseTime(order.endTime || "24:00");
+  }
+  
+  // Если заказ в процессе и это сегодня, конец = текущее время
+  if (order.status === "in_progress" && dateISO === todayISO()) {
+    var now = new Date();
+    orderEndTime = now.getHours() + now.getMinutes() / 60;
+  }
+  
+  // 3. Время смены
+  var shiftStart = parseTime(shift.start);
+  var shiftEnd = parseTime(shift.end);
+  
+  // 4. Пересечение заказа и смены
+  var workStart = Math.max(orderStartTime, shiftStart);
+  var workEnd = Math.min(orderEndTime, shiftEnd);
+  
+  if (workEnd <= workStart) {
+    return 0;
+  }
+  
+  var totalHours = workEnd - workStart;
+  
+  // 5. Вычитаем паузы по заказу (только те, что реально пересекают рабочий интервал)
+  var pauses = getOrderPauses(order.id);
+  for (var i = 0; i < pauses.length; i++) {
+    var pause = pauses[i];
+    if (!pause.start) continue;
+    
+    // Преобразуем время паузы в часы
+    var pauseStart = getTimeOfDay(pause.start);
+    var pauseEnd = pause.end ? getTimeOfDay(pause.end) : null;
+    
+    // Если пауза началась после окончания работы или закончилась до начала работы — пропускаем
+    if (pauseStart >= workEnd) continue;
+    if (pauseEnd !== null && pauseEnd <= workStart) continue;
+    
+    // Реальное пересечение паузы с рабочим интервалом
+    var overlapStart = Math.max(pauseStart, workStart);
+    var overlapEnd = (pauseEnd !== null) ? Math.min(pauseEnd, workEnd) : workEnd;
+    
+    if (overlapEnd > overlapStart) {
+      totalHours -= (overlapEnd - overlapStart);
+    }
+  }
+  
+  // 6. Вычитаем паузы смены (если они есть)
+  if (shift.pauses && Array.isArray(shift.pauses)) {
+    for (var p = 0; p < shift.pauses.length; p++) {
+      var sp = shift.pauses[p];
+      if (!sp.start || !sp.end) continue;
+      var spStart = parseTime(sp.start);
+      var spEnd = parseTime(sp.end);
+      if (spEnd > spStart) {
+        var overlapStart = Math.max(spStart, workStart);
+        var overlapEnd = Math.min(spEnd, workEnd);
+        if (overlapEnd > overlapStart) {
+          totalHours -= (overlapEnd - overlapStart);
+        }
+      }
+    }
+  }
+  
+  return Math.max(0, Math.round(totalHours * 100) / 100);
+}
+
+// ============================================================
+// ВСПОМОГАТЕЛЬНАЯ: получить время дня из ISO строки
+// ============================================================
+function getTimeOfDay(isoString) {
+  if (!isoString) return 0;
+  var parts = isoString.split('T');
+  if (parts.length < 2) return 0;
+  var timeParts = parts[1].split(':');
+  if (timeParts.length < 2) return 0;
+  return parseInt(timeParts[0]) + parseInt(timeParts[1]) / 60;
+}
+
+function pauseAllOtherOrders(orderId) {
+  var allOrders = state.orders.filter(function(o) {
+    return o.id !== orderId && o.status === "in_progress";
+  });
+  var now = new Date();
+  var dateStr = now.toISOString().split('T')[0];
+  var timeStr = now.toTimeString().slice(0,5);
+  for (var i = 0; i < allOrders.length; i++) {
+    var o = allOrders[i];
+    var pauses = getOrderPauses(o.id);
+    var hasActive = false;
+    for (var p = 0; p < pauses.length; p++) {
+      if (pauses[p].start && !pauses[p].end) {
+        hasActive = true;
+        break;
+      }
+    }
+    if (!hasActive) {
+      pauses.push({ start: dateStr + 'T' + timeStr + ':00.000Z', end: null });
+      saveOrderPauses(o.id, pauses);
+    }
   }
 }
