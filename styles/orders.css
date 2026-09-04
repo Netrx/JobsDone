@@ -257,7 +257,6 @@
   background: var(--surface-hover);
 }
 
-/* Темная тема для полей date/time */
 [data-theme="dark"] .pause-inputs input[type="date"],
 [data-theme="dark"] .pause-inputs input[type="time"] {
   background: var(--surface);
@@ -284,7 +283,6 @@
   background: var(--danger-hover);
 }
 
-/* Темная тема для календаря в попапе */
 [data-theme="dark"] .day-detail-popup .popup-card .popup-field .input-with-icon .date-picker-btn {
   background: var(--surface);
   border-color: var(--border);
@@ -295,7 +293,6 @@
   background: var(--surface-hover);
 }
 
-/* Для всех input type date/time в приложении */
 [data-theme="dark"] input[type="date"],
 [data-theme="dark"] input[type="time"] {
   background: var(--surface);
@@ -313,7 +310,6 @@
   filter: invert(1);
 }
 
-/* Стили для групп с одной кнопкой "Сейчас" */
 .field-group {
   margin-bottom: 14px;
 }
@@ -356,7 +352,6 @@
   background: var(--border);
 }
 
-/* Адаптив для мобильных */
 @media (max-width: 480px) {
   .field-row {
     gap: 6px;
@@ -373,8 +368,6 @@
     min-height: 32px;
     flex: 0 0 auto;
   }
-
-  /* Остальные адаптивные правки */
   .order-card {
     padding: 12px;
     gap: 8px;

@@ -180,13 +180,11 @@
     <label class="check-row"><input id="orderInProgress" type="checkbox"><span>В процессе</span></label>
     <label>Номер заказа <input id="orderNumber" required placeholder="Например, 1056"></label>
 
-    <!-- Две группы с одной кнопкой "Сейчас" каждая -->
     <div class="two-cols">
       <div class="field-group">
         <label>Начало</label>
         <div class="field-row">
           <input id="startDate" type="date" required>
-          <input id="startTime" type="text" required placeholder="10:00" maxlength="5">
           <button type="button" class="now-btn" data-group="start">Сейчас</button>
         </div>
       </div>
@@ -194,7 +192,6 @@
         <label>Окончание</label>
         <div class="field-row">
           <input id="endDate" type="date">
-          <input id="endTime" type="text" placeholder="18:00" maxlength="5">
           <button type="button" class="now-btn" data-group="end">Сейчас</button>
         </div>
       </div>
@@ -202,17 +199,20 @@
 
     <label class="textarea-label">Что сделано <textarea id="workDone" rows="3" placeholder="Описание выполненной работы…"></textarea></label>
     <label>Доход по заказу, ₽ <input id="income" type="number" min="0" step="0.01" required></label>
-    <label class="textarea-label">Комментарий <textarea id="comment" rows="2"></textarea></label>
-    <div class="order-pauses-section" id="pausesSection">
-      <div class="pauses-header">
-        <span>Паузы по заказу</span>
-        <span id="orderPauseCount">0</span>
-      </div>
-      <div id="orderPausesList"></div>
-      <div class="pause-actions">
-        <button type="button" id="addOrderPauseBtn" class="secondary small">+ Добавить паузу</button>
+    
+    <!-- НОВОЕ ПОЛЕ ДЛЯ РЕДАКТИРОВАНИЯ ЧАСОВ В ФОРМАТЕ ЧЧ:ММ -->
+    <div class="field-group" id="hoursField" style="display:block;">
+      <label>Отработано (ЧЧ:ММ)</label>
+      <input id="editHours" type="text" placeholder="Например: 04:30">
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">
+        Для активных заказов — установит начальное время. Для завершённых — сохранит указанные часы.
       </div>
     </div>
+    
+    <label class="textarea-label">Комментарий <textarea id="comment" rows="2"></textarea></label>
+    
+    <div id="orderTimerInfo" style="display:none; padding: 8px 0; font-weight: 600; color: var(--accent);"></div>
+    
     <div class="dialog-actions">
       <button type="button" id="deleteOrderBtn" class="danger hidden">Удалить</button>
       <button type="submit" class="primary">Сохранить</button>

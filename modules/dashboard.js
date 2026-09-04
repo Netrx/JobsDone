@@ -96,8 +96,16 @@ function analyticsWithRange() {
     for (var d = new Date(start); d <= end; d = addDays(d, 1)) {
       var iso = toISODate(d);
       if (order.status === "in_progress" && iso > todayISO()) continue;
-      // ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ РАСЧЁТА ЧАСОВ
-      var hours = getOrderHoursForDate(order, iso);
+      var hours = 0;
+      // Для завершённых заказов используем totalHours, распределённые по дням
+      if (order.status === "completed" && order.totalHours) {
+        // Простое распределение: часы делятся на количество дней
+        var totalDays = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1);
+        hours = order.totalHours / totalDays;
+      } else {
+        // Для активных заказов используем таймер, но в аналитике только завершённые
+        hours = 0;
+      }
       if (hours > 0 && workDays[iso]) {
         dailyHours[iso] = hours;
         totalOrderHours += hours;

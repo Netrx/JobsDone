@@ -1,76 +1,3 @@
-function formatDurationSmart(startMs, endMs) {
-  if (!startMs || !endMs || endMs <= startMs) return "";
-  var diffSeconds = Math.floor((endMs - startMs) / 1000);
-  if (diffSeconds < 60) return "менее минуты";
-  var diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) return diffMinutes + " мин";
-  var diffHours = Math.floor(diffMinutes / 60);
-  var remainMinutes = diffMinutes % 60;
-  if (diffHours < 24) return diffHours + " ч" + (remainMinutes > 0 ? " " + remainMinutes + " мин" : "");
-  var diffDays = Math.floor(diffHours / 24);
-  var remainHours = diffHours % 24;
-  if (diffDays < 30) {
-    var parts = [];
-    if (diffDays > 0) parts.push(diffDays + " д");
-    if (remainHours > 0) parts.push(remainHours + " ч");
-    if (remainMinutes > 0 && remainHours === 0) parts.push(remainMinutes + " мин");
-    return parts.join(" ");
-  }
-  var diffMonths = Math.floor(diffDays / 30);
-  var remainDays = diffDays % 30;
-  if (diffMonths < 12) {
-    var parts = [];
-    if (diffMonths > 0) parts.push(diffMonths + " мес");
-    if (remainDays > 0) parts.push(remainDays + " д");
-    if (remainHours > 0 && remainDays === 0) parts.push(remainHours + " ч");
-    return parts.join(" ");
-  }
-  var diffYears = Math.floor(diffMonths / 12);
-  var remainMonths = diffMonths % 12;
-  var parts = [];
-  if (diffYears > 0) parts.push(diffYears + " г" + (diffYears > 1 ? "" : ""));
-  if (remainMonths > 0) parts.push(remainMonths + " мес");
-  return parts.join(" ");
-}
-
-function validateDateString(dateStr) {
-  if (!dateStr) return false;
-  var parts = dateStr.split('-');
-  if (parts.length !== 3) return false;
-  var year = parts[0];
-  var month = parts[1];
-  var day = parts[2];
-  if (year.length !== 4) return false;
-  if (!/^\d{4}$/.test(year)) return false;
-  if (!/^\d{2}$/.test(month)) return false;
-  if (!/^\d{2}$/.test(day)) return false;
-  var y = parseInt(year);
-  var m = parseInt(month);
-  var d = parseInt(day);
-  if (y < 1900 || y > 2200) return false;
-  if (m < 1 || m > 12) return false;
-  if (d < 1 || d > 31) return false;
-  var dateObj = new Date(y, m - 1, d);
-  if (dateObj.getFullYear() !== y || dateObj.getMonth() !== m - 1 || dateObj.getDate() !== d) return false;
-  return true;
-}
-
-function normalizeDateInput(input) {
-  if (!input) return;
-  var val = input.value;
-  if (!val) return true;
-  if (!validateDateString(val)) {
-    input.style.borderColor = 'var(--danger)';
-    toast('Введите корректную дату (ГГГГ-ММ-ДД)');
-    setTimeout(function() {
-      input.style.borderColor = '';
-    }, 2000);
-    return false;
-  }
-  input.style.borderColor = '';
-  return true;
-}
-
 function filteredOrders(status) {
   var q = "";
   if (status === "completed") {
@@ -108,10 +35,9 @@ function renderOrders() {
   var html = "";
   for (var i = 0; i < rows.length; i++) {
     var o = rows[i];
-    // ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ РАСЧЁТА ЧАСОВ
     var h = calculateOrderHours(o);
     var per = h > 0 ? (Number(o.income) || 0) / h : 0;
-    var completion = o.endDate ? formatDate(o.endDate) + (o.endTime ? " в " + o.endTime : "") : "Не указано";
+    var completion = o.endDate ? formatDate(o.endDate) : "Не указано";
     html += '<div class="order-card" data-id="' + o.id + '">';
     html += '<div><div class="order-title">Заказ ' + escapeHtml(o.number) + '</div>';
     html += '<div class="order-work">' + escapeHtml(o.work || "Без описания") + '</div>';
@@ -131,302 +57,38 @@ document.getElementById("orderSearch").oninput = renderOrders;
 function syncStatusFields() {
   var inProgress = document.getElementById("orderInProgress").checked;
   var fields = document.getElementById("completionFields");
+  var hoursField = document.getElementById("hoursField");
   var income = document.getElementById("income");
   if (inProgress) {
     fields.classList.add("hidden");
     income.required = false;
+    hoursField.style.display = "block";
   } else {
     fields.classList.remove("hidden");
     income.required = true;
+    hoursField.style.display = "block";
   }
 }
 
-function getActiveOrderId() {
-  var activeOrders = state.orders.filter(function(o) {
-    if (o.status !== "in_progress") return false;
-    return !hasActivePause(o.id);
-  });
-  if (activeOrders.length === 0) return null;
-  return activeOrders[0].id;
+// ===== Вспомогательные функции для формата ЧЧ:ММ =====
+function hoursToTimeString(hoursDecimal) {
+  if (!hoursDecimal || hoursDecimal <= 0) return "";
+  var h = Math.floor(hoursDecimal);
+  var m = Math.round((hoursDecimal - h) * 60);
+  if (m === 60) { h++; m = 0; }
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
 }
 
-function pauseAllOtherOrders(orderId) {
-  var allOrders = state.orders.filter(function(o) {
-    return o.id !== orderId && o.status === "in_progress";
-  });
-  var now = new Date();
-  var dateStr = now.toISOString().split('T')[0];
-  var timeStr = now.toTimeString().slice(0,5);
-  for (var i = 0; i < allOrders.length; i++) {
-    var o = allOrders[i];
-    var pauses = getOrderPauses(o.id);
-    var hasActive = false;
-    for (var p = 0; p < pauses.length; p++) {
-      if (pauses[p].start && !pauses[p].end) {
-        hasActive = true;
-        break;
-      }
-    }
-    if (!hasActive) {
-      pauses.push({ start: dateStr + 'T' + timeStr + ':00.000Z', end: null });
-      saveOrderPauses(o.id, pauses);
-    }
-  }
+function timeStringToHours(timeStr) {
+  if (!timeStr) return NaN;
+  var parts = timeStr.split(":");
+  if (parts.length !== 2) return NaN;
+  var h = parseInt(parts[0]);
+  var m = parseInt(parts[1]);
+  if (isNaN(h) || isNaN(m)) return NaN;
+  return h + m / 60;
 }
-
-function resumeOrder(orderId) {
-  pauseAllOtherOrders(orderId);
-  var pauses = getOrderPauses(orderId);
-  var activePauseIndex = -1;
-  for (var i = 0; i < pauses.length; i++) {
-    if (pauses[i].start && !pauses[i].end) {
-      activePauseIndex = i;
-      break;
-    }
-  }
-  if (activePauseIndex !== -1) {
-    var now = new Date();
-    var dateStr = now.toISOString().split('T')[0];
-    var timeStr = now.toTimeString().slice(0,5);
-    pauses[activePauseIndex].end = dateStr + 'T' + timeStr + ':00.000Z';
-    saveOrderPauses(orderId, pauses);
-  }
-  setLastActiveOrder(orderId);
-  renderProgress();
-  toast("Заказ возобновлен, остальные на паузе");
-}
-
-function parseTimeFromInput(value) {
-  if (!value) return null;
-  var time = value.replace(':', '');
-  if (time.length !== 4) {
-    if (time.length === 2) return time + ':00';
-    if (time.length === 3) return time.slice(0,2) + ':' + time.slice(2) + '0';
-    return null;
-  }
-  return time.slice(0, 2) + ':' + time.slice(2);
-}
-
-function renderOrderPauses(order) {
-  var container = document.getElementById("orderPausesList");
-  if (!order) {
-    container.innerHTML = '';
-    document.getElementById("orderPauseCount").textContent = '0';
-    return;
-  }
-  var pauses = getOrderPauses(order.id);
-  document.getElementById("orderPauseCount").textContent = pauses.length;
-  if (pauses.length === 0) {
-    container.innerHTML = '<div class="muted" style="padding: 8px 0; color: var(--text-secondary); font-size: 13px;">Нет пауз</div>';
-    return;
-  }
-  var html = "";
-  for (var i = 0; i < pauses.length; i++) {
-    var pause = pauses[i];
-    var startParts = pause.start.split('T');
-    var startDateStr = startParts[0] || "";
-    var startTimeStr = startParts[1] ? startParts[1].slice(0,5) : "";
-    var endDateStr = "";
-    var endTimeStr = "";
-    var duration = "";
-    if (pause.end) {
-      var endParts = pause.end.split('T');
-      endDateStr = endParts[0] || "";
-      endTimeStr = endParts[1] ? endParts[1].slice(0,5) : "";
-      var startMs = Date.parse(pause.start);
-      var endMs = Date.parse(pause.end);
-      if (!isNaN(startMs) && !isNaN(endMs) && endMs > startMs) {
-        duration = formatDurationSmart(startMs, endMs);
-      }
-    }
-    html += '<div class="pause-item" data-index="' + i + '">';
-    html += '<div class="pause-row">';
-    html += '<div class="pause-col">';
-    html += '<label>Начало</label>';
-    html += '<div class="pause-inputs">';
-    html += '<input type="date" class="pause-start-date" value="' + startDateStr + '" data-order-id="' + order.id + '" data-pause-index="' + i + '" maxlength="10">';
-    html += '<input type="time" class="pause-start-time" value="' + startTimeStr + '" data-order-id="' + order.id + '" data-pause-index="' + i + '">';
-    html += '</div>';
-    html += '</div>';
-    html += '<div class="pause-col">';
-    html += '<label>Окончание</label>';
-    html += '<div class="pause-inputs">';
-    html += '<input type="date" class="pause-end-date" value="' + endDateStr + '" data-order-id="' + order.id + '" data-pause-index="' + i + '" maxlength="10">';
-    html += '<input type="time" class="pause-end-time" value="' + endTimeStr + '" data-order-id="' + order.id + '" data-pause-index="' + i + '">';
-    html += '</div>';
-    html += '</div>';
-    html += '<div class="pause-actions-col">';
-    if (duration) html += '<span class="pause-duration">' + duration + '</span>';
-    if (!pause.end) {
-      html += '<button type="button" class="small pause-resume-btn" data-order-id="' + order.id + '" data-pause-index="' + i + '">Возобновить</button>';
-    } else {
-      html += '<button type="button" class="small danger pause-delete" data-order-id="' + order.id + '" data-pause-index="' + i + '">✕</button>';
-    }
-    html += '</div>';
-    html += '</div>';
-    html += '</div>';
-  }
-  container.innerHTML = html;
-  
-  container.querySelectorAll('.pause-start-date').forEach(function(input) {
-    input.onblur = function() {
-      if (!normalizeDateInput(this)) return;
-      var orderId = this.dataset.orderId;
-      var index = parseInt(this.dataset.pauseIndex);
-      var value = this.value;
-      if (!value) return;
-      var pauses = getOrderPauses(orderId);
-      if (!pauses[index]) return;
-      var time = pauses[index].start.split('T')[1] || '00:00:00.000Z';
-      pauses[index].start = value + 'T' + time;
-      saveOrderPauses(orderId, pauses);
-      var order = state.orders.find(function(o) { return o.id === orderId; });
-      if (order) renderOrderPauses(order);
-      toast("Дата начала обновлена");
-    };
-    input.oninput = function() {
-      var val = this.value;
-      if (val.length > 10) this.value = val.slice(0, 10);
-      var parts = val.split('-');
-      if (parts.length === 3 && parts[0].length > 4) {
-        this.value = parts[0].slice(0, 4) + '-' + parts[1] + '-' + parts[2];
-      }
-    };
-  });
-  
-  container.querySelectorAll('.pause-start-time').forEach(function(input) {
-    input.onblur = function() {
-      var orderId = this.dataset.orderId;
-      var index = parseInt(this.dataset.pauseIndex);
-      var value = this.value;
-      if (!value) { toast("Введите время"); return; }
-      var pauses = getOrderPauses(orderId);
-      if (!pauses[index]) return;
-      var dateStr = pauses[index].start.split('T')[0];
-      pauses[index].start = dateStr + 'T' + value + ':00.000Z';
-      saveOrderPauses(orderId, pauses);
-      var order = state.orders.find(function(o) { return o.id === orderId; });
-      if (order) renderOrderPauses(order);
-      toast("Время начала обновлено");
-    };
-  });
-  
-  container.querySelectorAll('.pause-end-date').forEach(function(input) {
-    input.onblur = function() {
-      if (!normalizeDateInput(this)) return;
-      var orderId = this.dataset.orderId;
-      var index = parseInt(this.dataset.pauseIndex);
-      var value = this.value;
-      var pauses = getOrderPauses(orderId);
-      if (!pauses[index]) return;
-      if (!value) {
-        if (pauses[index].end) {
-          pauses[index].end = null;
-          saveOrderPauses(orderId, pauses);
-          var order = state.orders.find(function(o) { return o.id === orderId; });
-          if (order) renderOrderPauses(order);
-          toast("Пауза стала активной");
-        }
-        return;
-      }
-      if (!pauses[index].end) {
-        toast("Сначала завершите паузу через кнопку 'Возобновить'");
-        return;
-      }
-      var time = pauses[index].end.split('T')[1] || '00:00:00.000Z';
-      pauses[index].end = value + 'T' + time;
-      saveOrderPauses(orderId, pauses);
-      var order = state.orders.find(function(o) { return o.id === orderId; });
-      if (order) renderOrderPauses(order);
-      toast("Дата окончания обновлена");
-    };
-    input.oninput = function() {
-      var val = this.value;
-      if (val.length > 10) this.value = val.slice(0, 10);
-      var parts = val.split('-');
-      if (parts.length === 3 && parts[0].length > 4) {
-        this.value = parts[0].slice(0, 4) + '-' + parts[1] + '-' + parts[2];
-      }
-    };
-  });
-  
-  container.querySelectorAll('.pause-end-time').forEach(function(input) {
-    input.onblur = function() {
-      var orderId = this.dataset.orderId;
-      var index = parseInt(this.dataset.pauseIndex);
-      var value = this.value;
-      var pauses = getOrderPauses(orderId);
-      if (!pauses[index]) return;
-      if (!value) {
-        if (pauses[index].end) {
-          pauses[index].end = null;
-          saveOrderPauses(orderId, pauses);
-          var order = state.orders.find(function(o) { return o.id === orderId; });
-          if (order) renderOrderPauses(order);
-          toast("Пауза стала активной");
-        }
-        return;
-      }
-      if (!pauses[index].end) {
-        toast("Сначала завершите паузу через кнопку 'Возобновить'");
-        return;
-      }
-      var dateStr = pauses[index].end.split('T')[0];
-      pauses[index].end = dateStr + 'T' + value + ':00.000Z';
-      saveOrderPauses(orderId, pauses);
-      var order = state.orders.find(function(o) { return o.id === orderId; });
-      if (order) renderOrderPauses(order);
-      toast("Время окончания обновлено");
-    };
-  });
-  
-  container.querySelectorAll('.pause-resume-btn').forEach(function(btn) {
-    btn.onclick = function() {
-      var orderId = this.dataset.orderId;
-      var index = parseInt(this.dataset.pauseIndex);
-      var pauses = getOrderPauses(orderId);
-      var now = new Date();
-      var dateStr = now.toISOString().split('T')[0];
-      var timeStr = now.toTimeString().slice(0,5);
-      pauses[index].end = dateStr + 'T' + timeStr + ':00.000Z';
-      saveOrderPauses(orderId, pauses);
-      pauseAllOtherOrders(orderId);
-      setLastActiveOrder(orderId);
-      var order = state.orders.find(function(o) { return o.id === orderId; });
-      if (order) renderOrderPauses(order);
-      renderProgress();
-      toast("Заказ возобновлен, остальные на паузе");
-    };
-  });
-  
-  container.querySelectorAll('.pause-delete').forEach(function(btn) {
-    btn.onclick = function() {
-      var orderId = this.dataset.orderId;
-      var index = parseInt(this.dataset.pauseIndex);
-      var pauses = getOrderPauses(orderId);
-      pauses.splice(index, 1);
-      saveOrderPauses(orderId, pauses);
-      var order = state.orders.find(function(o) { return o.id === orderId; });
-      if (order) renderOrderPauses(order);
-      renderProgress();
-      toast("Пауза удалена");
-    };
-  });
-}
-
-// УСТАРЕВШАЯ ФУНКЦИЯ — больше не используется, но оставлена для совместимости
-function orderHoursOnDate(order, iso) {
-  // Эта функция больше не используется, используйте getOrderHoursForDate из utils.js
-  console.warn("orderHoursOnDate устарела, используйте getOrderHoursForDate");
-  return getOrderHoursForDate(order, iso);
-}
-
-// УСТАРЕВШАЯ ФУНКЦИЯ — больше не используется
-function orderHours(order) {
-  // Эта функция больше не используется, используйте calculateOrderHours из utils.js
-  console.warn("orderHours устарела, используйте calculateOrderHours");
-  return calculateOrderHours(order);
-}
+// =================================================
 
 function openOrder(id) {
   id = id || null;
@@ -447,130 +109,201 @@ function openOrder(id) {
   document.getElementById("orderNumber").value = order ? order.number : "";
   document.getElementById("startDate").value = order ? order.startDate : todayISO();
   document.getElementById("endDate").value = order ? (order.endDate || "") : "";
-  document.getElementById("startTime").value = order ? order.startTime : state.settings.standardStart;
-  document.getElementById("endTime").value = order ? (order.endTime || "") : state.settings.standardEnd;
   document.getElementById("workDone").value = order ? order.work : "";
   document.getElementById("income").value = order ? order.income : "";
   document.getElementById("comment").value = order ? order.comment : "";
+  
+  // Поле для ручного ввода часов в формате ЧЧ:ММ
+  var hoursInput = document.getElementById("editHours");
+  if (order) {
+    var currentHours = calculateOrderHours(order);
+    hoursInput.value = currentHours > 0 ? hoursToTimeString(currentHours) : "";
+    hoursInput.placeholder = "Например: 04:30";
+  } else {
+    hoursInput.value = "";
+    hoursInput.placeholder = "Например: 04:30";
+  }
+  
+  var timerInfo = document.getElementById("orderTimerInfo");
+  if (order) {
+    var hours = calculateOrderHours(order);
+    var statusText = order.status === "completed" ? "Отработано" : "Текущее время";
+    timerInfo.textContent = "⏱ " + statusText + ": " + formatHoursMinutes(hours);
+    timerInfo.style.display = "block";
+    
+    if (order.status === "in_progress") {
+      startTimerDisplay(order.id);
+    } else {
+      stopTimerDisplay();
+    }
+  } else {
+    timerInfo.style.display = "none";
+  }
+  
   syncStatusFields();
-  renderOrderPauses(order);
   var dialog = document.getElementById("orderDialog");
   dialog.showModal();
+}
+
+var timerDisplayInterval = null;
+
+function startTimerDisplay(orderId) {
+  stopTimerDisplay();
+  timerDisplayInterval = setInterval(function() {
+    var hours = getOrderTimerHours(orderId);
+    var el = document.getElementById("orderTimerInfo");
+    if (el) {
+      el.textContent = "⏱ Текущее время: " + formatHoursMinutes(hours);
+    }
+    // Также обновляем поле с часами (placeholder)
+    var hoursInput = document.getElementById("editHours");
+    if (hoursInput && document.getElementById("orderDialog").open) {
+      var currentHours = getOrderTimerHours(orderId);
+      hoursInput.placeholder = "Текущее: " + hoursToTimeString(currentHours);
+    }
+  }, 1000);
+}
+
+function stopTimerDisplay() {
+  if (timerDisplayInterval) {
+    clearInterval(timerDisplayInterval);
+    timerDisplayInterval = null;
+  }
 }
 
 function formOrder() {
   var id = document.getElementById("orderId").value;
   if (!id) id = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
-  return {
+  var isInProgress = document.getElementById("orderInProgress").checked;
+  var endDate = isInProgress ? null : document.getElementById("endDate").value;
+  
+  // Получаем вручную введённое время в формате ЧЧ:ММ
+  var hoursInput = document.getElementById("editHours");
+  var timeStr = hoursInput.value.trim();
+  var manualHours = timeStringToHours(timeStr);
+  var hasManualHours = !isNaN(manualHours) && manualHours > 0;
+  
+  var order = {
     id: id,
-    status: document.getElementById("orderInProgress").checked ? "in_progress" : "completed",
+    status: isInProgress ? "in_progress" : "completed",
     number: document.getElementById("orderNumber").value.trim(),
     startDate: document.getElementById("startDate").value,
-    startTime: document.getElementById("startTime").value,
-    endDate: document.getElementById("endDate").value,
-    endTime: document.getElementById("endTime").value,
+    endDate: endDate,
     work: document.getElementById("workDone").value.trim(),
     income: Number(document.getElementById("income").value) || 0,
     comment: document.getElementById("comment").value.trim(),
     createdAt: new Date().toISOString()
   };
+  
+  if (!isInProgress) {
+    // Завершённый заказ
+    if (hasManualHours) {
+      // Используем ручные часы
+      order.totalHours = Math.round(manualHours * 100) / 100;
+    } else {
+      // Если нет ручных часов, пытаемся взять из таймера
+      var timerHours = getOrderTimerSeconds(id) / 3600;
+      if (timerHours > 0) {
+        order.totalHours = Math.round(timerHours * 100) / 100;
+      } else {
+        order.totalHours = 0;
+      }
+    }
+    stopOrderTimer(id);
+  } else {
+    // Активный заказ
+    if (hasManualHours) {
+      // Устанавливаем таймер с указанным количеством часов
+      var timer = getOrderTimer(id);
+      if (timer) {
+        // Если таймер существует, обновляем accumulated
+        timer.accumulated = manualHours * 3600;
+        if (timer.isRunning) {
+          // Если таймер запущен, сбрасываем startedAt, чтобы не накапливалось дважды
+          timer.startedAt = new Date().toISOString();
+        }
+        saveOrderTimer(id, timer);
+      } else {
+        // Создаём новый таймер с указанным временем
+        var timerData = {
+          startedAt: new Date().toISOString(),
+          accumulated: manualHours * 3600,
+          isRunning: true
+        };
+        saveOrderTimer(id, timerData);
+        startTimerTick(id);
+      }
+    } else {
+      // Если нет ручных часов, проверяем существующий таймер
+      var timer = getOrderTimer(id);
+      if (!timer) {
+        startOrderTimer(id);
+      }
+    }
+  }
+  
+  return order;
 }
 
 document.getElementById("closeOrderDialog").onclick = function() {
+  stopTimerDisplay();
   document.getElementById("orderDialog").close();
 };
 
 document.getElementById("orderInProgress").onchange = syncStatusFields;
 
-document.getElementById("addOrderPauseBtn").onclick = function() {
-  var orderId = document.getElementById("orderId").value;
-  if (!orderId) {
-    toast("Сначала сохраните заказ");
-    return;
-  }
-  var order = state.orders.find(function(o) { return o.id === orderId; });
-  if (!order) {
-    toast("Заказ не найден");
-    return;
-  }
-  var pauses = getOrderPauses(orderId);
-  var hasActive = false;
-  for (var i = 0; i < pauses.length; i++) {
-    if (pauses[i].start && !pauses[i].end) {
-      hasActive = true;
-      break;
-    }
-  }
-  if (hasActive) {
-    toast("У заказа уже есть активная пауза. Сначала возобновите его.");
-    return;
-  }
-  var now = new Date();
-  var dateStr = now.toISOString().split('T')[0];
-  var timeStr = now.toTimeString().slice(0,5);
-  pauses.push({ start: dateStr + 'T' + timeStr + ':00.000Z', end: null });
-  saveOrderPauses(orderId, pauses);
-  if (order.status === "in_progress") {
-    pauseAllOtherOrders(orderId);
-  }
-  renderOrderPauses(order);
-  renderProgress();
-  toast("Пауза начата" + (order.status === "in_progress" ? ", остальные заказы на паузе" : ""));
-};
-
 document.getElementById("orderForm").onsubmit = function(e) {
   e.preventDefault();
   var o = formOrder();
-  if (o.endDate && parseDate(o.endDate) < parseDate(o.startDate)) {
-    toast("Дата выполнения раньше даты начала");
-    return;
-  }
+  
   var existing = -1;
   for (var i = 0; i < state.orders.length; i++) {
     if (state.orders[i].id === o.id) { existing = i; break; }
   }
+  
+  if (o.status === "completed") {
+    stopOrderTimer(o.id);
+  }
+  
   if (existing >= 0) {
     state.orders[existing] = o;
   } else {
     state.orders.push(o);
+    if (o.status === "in_progress") {
+      setActiveOrder(o.id);
+    }
   }
   
   if (o.status === "in_progress") {
-    pauseAllOtherOrders(o.id);
-    var pauses = getOrderPauses(o.id);
-    var hasActivePause = false;
-    for (var p = 0; p < pauses.length; p++) {
-      if (pauses[p].start && !pauses[p].end) {
-        hasActivePause = true;
-        break;
-      }
-    }
-    if (!hasActivePause) {
-      var now = new Date();
-      var dateStr = now.toISOString().split('T')[0];
-      var timeStr = now.toTimeString().slice(0,5);
-      pauses.push({ start: dateStr + 'T' + timeStr + ':00.000Z', end: null });
-      saveOrderPauses(o.id, pauses);
+    var timer = getOrderTimer(o.id);
+    if (!timer || !timer.isRunning) {
+      setActiveOrder(o.id);
     }
   }
   
   saveState();
+  stopTimerDisplay();
   document.getElementById("orderDialog").close();
-  toast("Заказ сохранён" + (o.status === "in_progress" ? " (по умолчанию на паузе)" : ""));
+  toast("Заказ сохранён" + (o.status === "in_progress" ? " (активен)" : ""));
+  if (typeof renderAll === "function") renderAll();
 };
 
 document.getElementById("deleteOrderBtn").onclick = function() {
   var id = document.getElementById("orderId").value;
   if (!id) return;
   if (!confirm("Удалить заказ?")) return;
+  
+  stopOrderTimer(id);
   var newOrders = [];
   for (var i = 0; i < state.orders.length; i++) {
     if (state.orders[i].id !== id) newOrders.push(state.orders[i]);
   }
   state.orders = newOrders;
   saveState();
+  stopTimerDisplay();
   document.getElementById("orderDialog").close();
   toast("Заказ удалён");
+  if (typeof renderAll === "function") renderAll();
 };
 
 document.getElementById("addOrderBtn").onclick = function() { openOrder(); };
@@ -579,34 +312,3 @@ document.getElementById("addProgressBtn").onclick = function() {
   document.getElementById("orderInProgress").checked = true;
   syncStatusFields();
 };
-
-document.addEventListener('click', function(e) {
-  var btn = e.target.closest('.now-btn');
-  if (!btn) return;
-
-  var group = btn.dataset.group;
-  if (!group) return;
-
-  var dateInput, timeInput;
-  if (group === 'start') {
-    dateInput = document.getElementById('startDate');
-    timeInput = document.getElementById('startTime');
-  } else if (group === 'end') {
-    dateInput = document.getElementById('endDate');
-    timeInput = document.getElementById('endTime');
-  } else {
-    return;
-  }
-
-  if (dateInput) dateInput.value = todayISO();
-  if (timeInput) timeInput.value = nowHHMM();
-
-  [dateInput, timeInput].forEach(function(input) {
-    if (input) {
-      input.style.borderColor = 'var(--accent)';
-      setTimeout(function() {
-        input.style.borderColor = '';
-      }, 800);
-    }
-  });
-});

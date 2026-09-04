@@ -260,7 +260,6 @@ dialog label input, dialog label textarea { margin-top: 6px; font-weight: 400; c
   }
 }
 
-/* Стили для двух колонок в диалоге */
 .two-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -282,7 +281,6 @@ dialog label input, dialog label textarea { margin-top: 6px; font-weight: 400; c
   }
 }
 
-/* Стили для кнопки установки */
 #installBtn {
   display: none;
   background: var(--accent);
@@ -318,14 +316,12 @@ dialog label input, dialog label textarea { margin-top: 6px; font-weight: 400; c
   border: 1px solid var(--border);
 }
 
-/* Для iOS */
 @supports (-webkit-touch-callout: none) {
   #installBtn {
     -webkit-tap-highlight-color: transparent;
   }
 }
 
-/* Стили для select в тулбаре */
 .toolbar select {
   width: auto;
   min-width: 80px;
@@ -356,7 +352,6 @@ dialog label input, dialog label textarea { margin-top: 6px; font-weight: 400; c
   background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
 }
 
-/* Стили для input type date/time в темной теме */
 [data-theme="dark"] input[type="date"],
 [data-theme="dark"] input[type="time"] {
   background: var(--surface);
@@ -374,7 +369,6 @@ dialog label input, dialog label textarea { margin-top: 6px; font-weight: 400; c
   filter: invert(1);
 }
 
-/* Стили для скроллбара в диалогах */
 dialog form::-webkit-scrollbar {
   width: 4px;
 }
@@ -388,13 +382,11 @@ dialog form::-webkit-scrollbar-thumb {
   border-radius: 99px;
 }
 
-/* Стили для disabled кнопок */
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* Стили для инпутов в диалоге */
 dialog input[type="text"],
 dialog input[type="number"],
 dialog input[type="date"],
@@ -429,7 +421,6 @@ dialog textarea:focus {
   box-shadow: 0 0 0 3px rgba(224,224,224,0.08);
 }
 
-/* Стили для кнопок в диалоге */
 .dialog-actions .primary {
   background: var(--accent);
   color: var(--surface);

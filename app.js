@@ -27,13 +27,11 @@ function renderAll() {
 
 renderAll();
 
-// Регистрация Service Worker с обработкой ошибок
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   window.addEventListener("load", function() {
     navigator.serviceWorker.register("sw.js")
       .then(function(reg) {
         console.log("SW registered successfully");
-        // Проверяем обновления
         reg.addEventListener("updatefound", function() {
           var installingWorker = reg.installing;
           installingWorker.onstatechange = function() {
@@ -81,7 +79,6 @@ document.getElementById("installBtn").onclick = async function() {
     return;
   }
   try {
-    // Показываем индикатор установки
     var installBtn = document.getElementById("installBtn");
     installBtn.textContent = "⏳ Установка...";
     installBtn.disabled = true;
@@ -108,7 +105,6 @@ document.getElementById("installBtn").onclick = async function() {
   }
 };
 
-// Проверка статуса установки при загрузке
 if (window.matchMedia('(display-mode: standalone)').matches || 
     window.navigator.standalone === true) {
   var installBtn = document.getElementById("installBtn");

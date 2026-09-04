@@ -10,7 +10,32 @@ function download(name, text, type) {
 }
 
 document.getElementById("exportBackupBtn").onclick = function() {
-  var data = JSON.stringify(state, null, 2);
+  // Создаем чистую копию для экспорта
+  var exportData = {
+    orders: state.orders.map(function(order) {
+      var cleanOrder = {
+        id: order.id,
+        status: order.status,
+        number: order.number,
+        startDate: order.startDate,
+        endDate: order.endDate || "",
+        work: order.work || "",
+        income: order.income || 0,
+        comment: order.comment || "",
+        createdAt: order.createdAt
+      };
+      if (order.status === "completed" && order.totalHours) {
+        cleanOrder.totalHours = order.totalHours;
+      }
+      return cleanOrder;
+    }),
+    settings: state.settings,
+    workDays: state.workDays,
+    orderTimers: state.orderTimers || {},
+    lastActiveOrder: state.lastActiveOrder || null
+  };
+  
+  var data = JSON.stringify(exportData, null, 2);
   download("worktracker_backup_" + todayISO() + ".json", data, "application/json");
 };
 
@@ -23,97 +48,120 @@ document.getElementById("importBackupInput").onchange = function(e) {
       var data = JSON.parse(ev.target.result);
       
       // Проверяем базовую структуру
-      if (!Array.isArray(data.orders) || !data.settings) throw new Error("Неверная структура данных");
+      if (!Array.isArray(data.orders) || !data.settings) {
+        throw new Error("Неверная структура данных");
+      }
+      
+      // Создаем новый state
+      var newState = {
+        orders: [],
+        settings: data.settings,
+        workDays: {},
+        orderTimers: {},
+        lastActiveOrder: null
+      };
+      
+      // Очищаем workDays от старых полей
+      if (data.workDays) {
+        for (var key in data.workDays) {
+          var wd = data.workDays[key];
+          // Пропускаем записи без end
+          if (!wd.end) continue;
+          newState.workDays[key] = {
+            start: wd.start,
+            end: wd.end
+          };
+        }
+      }
       
       // Восстанавливаем заказы
-      state.orders = data.orders;
-      
-      // Восстанавливаем настройки
-      state.settings = data.settings;
-      
-      // Восстанавливаем рабочие дни
-      state.workDays = data.workDays || {};
-      
-      // Восстанавливаем паузы заказов
-      state.orderPauses = data.orderPauses || {};
-      
-      // Восстанавливаем последний активный заказ
-      state.lastActiveOrder = data.lastActiveOrder || null;
-      
-      // Миграция из старого формата (если есть dailyHours)
-      if (data.dailyHours) {
-        for (var key in data.dailyHours) {
-          if (!state.workDays[key]) {
-            state.workDays[key] = {};
-          }
-          var hours = data.dailyHours[key];
-          var startHour = Math.floor(hours);
-          var startMin = Math.round((hours - startHour) * 60);
-          var endHour = Math.floor(hours);
-          var endMin = Math.round((hours - endHour) * 60);
-          if (startMin < 10) startMin = "0" + startMin;
-          if (endMin < 10) endMin = "0" + endMin;
-          var startTime = startHour + ":" + startMin;
-          var endTime = endHour + ":" + endMin;
-          state.workDays[key].start = startTime;
-          state.workDays[key].end = endTime;
-          if (!state.workDays[key].pauses) state.workDays[key].pauses = [];
+      for (var i = 0; i < data.orders.length; i++) {
+        var order = data.orders[i];
+        var cleanOrder = {
+          id: order.id,
+          status: order.status || "completed",
+          number: order.number || "",
+          startDate: order.startDate || todayISO(),
+          endDate: order.endDate || "",
+          work: order.work || "",
+          income: Number(order.income) || 0,
+          comment: order.comment || "",
+          createdAt: order.createdAt || new Date().toISOString()
+        };
+        
+        // Для завершенных заказов сохраняем часы
+        if (cleanOrder.status === "completed") {
+          cleanOrder.totalHours = Number(order.totalHours) || 0;
         }
+        
+        newState.orders.push(cleanOrder);
       }
       
-      // Миграция из старого формата (weekendHours)
-      if (data.weekendHours) {
-        for (var key in data.weekendHours) {
-          var wh = data.weekendHours[key];
-          if (wh.sat > 0 || wh.sun > 0) {
-            if (!state.workDays[key]) state.workDays[key] = {};
-            if (!state.workDays[key].pauses) state.workDays[key].pauses = [];
+      // Восстанавливаем таймеры для активных заказов
+      if (data.orderTimers) {
+        for (var orderId in data.orderTimers) {
+          var timer = data.orderTimers[orderId];
+          if (timer && typeof timer === 'object') {
+            // Проверяем, что заказ существует
+            var orderExists = newState.orders.some(function(o) { return o.id === orderId; });
+            if (orderExists) {
+              newState.orderTimers[orderId] = {
+                startedAt: timer.startedAt || null,
+                accumulated: Number(timer.accumulated) || 0,
+                isRunning: timer.isRunning || false
+              };
+            }
           }
         }
       }
       
-      // Проверяем и восстанавливаем паузы в рабочих днях
-      for (var dayKey in state.workDays) {
-        var wd = state.workDays[dayKey];
-        if (!wd.pauses) wd.pauses = [];
-        if (wd.pausedAt && !wd.end) {
-          // Если смена на паузе, но пауза не добавлена в список - добавляем
-          var hasPause = wd.pauses.some(function(p) { 
-            return p.start === wd.pausedAt && !p.end; 
-          });
-          if (!hasPause && wd.start) {
-            wd.pauses.push({ start: wd.pausedAt, end: "" });
-          }
+      // Для активных заказов без таймеров создаем их
+      for (var i = 0; i < newState.orders.length; i++) {
+        var order = newState.orders[i];
+        if (order.status === "in_progress" && !newState.orderTimers[order.id]) {
+          newState.orderTimers[order.id] = {
+            startedAt: null,
+            accumulated: 0,
+            isRunning: false
+          };
         }
       }
       
-      // Проверяем и восстанавливаем паузы в заказах
-      for (var orderId in state.orderPauses) {
-        var pauses = state.orderPauses[orderId];
-        if (!Array.isArray(pauses)) {
-          state.orderPauses[orderId] = [];
-        } else {
-          // Убеждаемся, что все паузы имеют корректный формат
-          state.orderPauses[orderId] = pauses.filter(function(p) {
-            return p && typeof p === 'object' && p.start;
-          }).map(function(p) {
-            return {
-              start: p.start,
-              end: p.end || null
-            };
-          });
+      // Восстанавливаем lastActiveOrder
+      if (data.lastActiveOrder && data.lastActiveOrder.id) {
+        var orderExists = newState.orders.some(function(o) { 
+          return o.id === data.lastActiveOrder.id; 
+        });
+        if (orderExists) {
+          newState.lastActiveOrder = {
+            id: data.lastActiveOrder.id,
+            updatedAt: data.lastActiveOrder.updatedAt || new Date().toISOString()
+          };
         }
       }
       
-      // Сохраняем все в localStorage
+      // Применяем новый state
+      state.orders = newState.orders;
+      state.settings = newState.settings;
+      state.workDays = newState.workDays;
+      state.orderTimers = newState.orderTimers;
+      state.lastActiveOrder = newState.lastActiveOrder;
+      
+      // Удаляем старые поля
+      delete state.orderPauses;
+      delete state.dailyHours;
+      delete state.weekendHours;
+      
+      // Сохраняем
       saveState();
       
-      // Перерисовываем все представления
+      // Перерисовываем
       if (typeof renderAll === "function") {
         renderAll();
       }
       
-      toast("Резервная копия загружена (" + state.orders.length + " заказов, " + Object.keys(state.workDays).length + " рабочих дней)");
+      var activeCount = newState.orders.filter(function(o) { return o.status === "in_progress"; }).length;
+      toast("Резервная копия загружена (" + newState.orders.length + " заказов, " + activeCount + " активных)");
     } catch(err) {
       console.error("Ошибка импорта:", err);
       toast("Не удалось прочитать резервную копию: " + err.message);
@@ -129,7 +177,7 @@ document.getElementById("resetBtn").onclick = function() {
     orders: [], 
     settings: { standardStart: "10:00", standardEnd: "18:00" }, 
     workDays: {},
-    orderPauses: {},
+    orderTimers: {},
     lastActiveOrder: null
   };
   saveState();
