@@ -217,6 +217,8 @@ function pauseOrderTimer(orderId) {
   timer.startedAt = null;
   saveOrderTimer(orderId, timer);
   stopTimerTick(orderId);
+  // ЗАПОМИНАЕМ последний заказ, поставленный на паузу
+  setLastActiveOrder(orderId);
 }
 
 function resumeOrderTimer(orderId) {
@@ -334,7 +336,7 @@ function stopAllOrders() {
   for (var i = 0; i < allOrders.length; i++) {
     pauseOrderTimer(allOrders[i].id);
   }
-  state.lastActiveOrder = null;
+  // lastActiveOrder НЕ сбрасываем — чтобы можно было возобновить при новой смене
   saveState();
   if (typeof renderProgress === "function") renderProgress();
 }
@@ -377,9 +379,9 @@ function resumeLastActiveOrder() {
   var order = state.orders.find(function(o) { return o.id === last.id; });
   if (!order || order.status !== "in_progress") return;
   var timer = getOrderTimer(order.id);
-  if (!timer || !timer.isRunning) {
-    setActiveOrder(order.id);
-  }
+  if (timer && timer.isRunning) return; // уже работает
+  setActiveOrder(order.id);
+  toast("Заказ " + order.number + " возобновлён");
 }
 
 function setLastActiveOrder(orderId) {

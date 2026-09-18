@@ -63,16 +63,16 @@
   </div>
 
   <div class="kpi-grid">
-    <div class="kpi"><span>Часы</span><strong></strong></div>
+    <div class="kpi"><span>Часы смен</span><strong></strong></div>
+    <div class="kpi"><span>Часы на заказах</span><strong></strong></div>
     <div class="kpi"><span>Доход / час</span><strong></strong></div>
-    <div class="kpi"><span>Доход / день</span><strong></strong></div>
     <div class="kpi"><span>Отработано дней</span><strong></strong></div>
   </div>
 
   <div class="panel">
     <div class="panel-head">
       <h3>По месяцам</h3>
-      <span class="muted">Только завершённые заказы</span>
+      <span class="muted">Часы смен и часы на заказах</span>
     </div>
     <div id="monthsList" class="months-list"></div>
   </div>
@@ -199,8 +199,8 @@
 
     <label class="textarea-label">Что сделано <textarea id="workDone" rows="3" placeholder="Описание выполненной работы…"></textarea></label>
     <label>Доход по заказу, ₽ <input id="income" type="number" min="0" step="0.01" required></label>
-    
-    <!-- НОВОЕ ПОЛЕ ДЛЯ РЕДАКТИРОВАНИЯ ЧАСОВ В ФОРМАТЕ ЧЧ:ММ -->
+
+    <!-- ПОЛЕ ДЛЯ РЕДАКТИРОВАНИЯ ЧАСОВ В ФОРМАТЕ ЧЧ:ММ -->
     <div class="field-group" id="hoursField" style="display:block;">
       <label>Отработано (ЧЧ:ММ)</label>
       <input id="editHours" type="text" placeholder="Например: 04:30">
@@ -208,11 +208,11 @@
         Для активных заказов — установит начальное время. Для завершённых — сохранит указанные часы.
       </div>
     </div>
-    
+
     <label class="textarea-label">Комментарий <textarea id="comment" rows="2"></textarea></label>
-    
+
     <div id="orderTimerInfo" style="display:none; padding: 8px 0; font-weight: 600; color: var(--accent);"></div>
-    
+
     <div class="dialog-actions">
       <button type="button" id="deleteOrderBtn" class="danger hidden">Удалить</button>
       <button type="submit" class="primary">Сохранить</button>

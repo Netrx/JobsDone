@@ -199,9 +199,10 @@ function renderCalendar() {
       };
       toast("Смена начата в " + t);
     }
-    
+
+    // Возобновляем последний заказ, который был на паузе
     resumeLastActiveOrder();
-    
+
     saveState();
     renderCalendar();
     renderProgress();
