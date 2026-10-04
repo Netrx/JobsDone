@@ -1,4 +1,4 @@
-var CACHE = "worktracker-v3";
+var CACHE = "worktracker-v4";
 var ASSETS = [
   "./",
   "./index.html",

@@ -53,10 +53,16 @@ function setCustomRange(from, to) {
 function getOrdersInRange(orders) {
   if (!currentRange.from && !currentRange.to) return orders;
   return orders.filter(function(order) {
-    if (!order.endDate) return false;
-    var orderEnd = new Date(order.endDate + 'T23:59:59');
+    if (!order.startDate && !order.endDate) return false;
+    var startISO = order.startDate || order.endDate;
+    var endISO = order.endDate || order.startDate;
+    var orderStart = new Date(startISO + 'T00:00:00');
+    var orderEnd = new Date(endISO + 'T23:59:59');
+
+    // Заказ относится к диапазону, если его период пересекается
+    // с выбранным диапазоном хотя бы одним днём.
     if (currentRange.from && orderEnd < currentRange.from) return false;
-    if (currentRange.to && orderEnd > currentRange.to) return false;
+    if (currentRange.to && orderStart > currentRange.to) return false;
     return true;
   });
 }
@@ -117,31 +123,41 @@ function analyticsWithRange() {
     months[m].daily[iso].hours += h;
   }
 
-  // 2. Завершённые заказы в периоде: часы на заказах + доход
+  // 2. Завершённые заказы: сначала распределяем доход и часы по ВСЕМ
+  // рабочим дням заказа, и только потом отбираем дни выбранного периода.
+  // Важно: нельзя считать долю заказа только по workDays текущего фильтра,
+  // иначе при ручном диапазоне весь доход многодневного заказа
+  // искусственно переносится внутрь выбранного периода.
   var completedOrders = state.orders.filter(isCompleted);
-  var filteredOrders = getOrdersInRange(completedOrders);
 
-  for (var i = 0; i < filteredOrders.length; i++) {
-    var order = filteredOrders[i];
+  for (var i = 0; i < completedOrders.length; i++) {
+    var order = completedOrders[i];
     var orderIncome = Number(order.income) || 0;
     var orderTotalHours = Number(order.totalHours) || 0;
 
-    // Дни заказа, попавшие в рабочие дни
-    var orderWorkDays = [];
+    // Все реальные рабочие дни заказа, независимо от текущего фильтра.
+    var allOrderWorkDays = [];
     var start = parseDate(order.startDate);
     var end = parseDate(order.endDate || order.startDate);
     for (var d = new Date(start); d <= end; d = addDays(d, 1)) {
       var iso = toISODate(d);
-      if (workDays[iso]) orderWorkDays.push(iso);
+      var wd = state.workDays && state.workDays[iso];
+      if (wd && wd.start && wd.end && getWorkedHoursForDate(iso) > 0) {
+        allOrderWorkDays.push(iso);
+      }
     }
-    if (orderWorkDays.length === 0) continue;
+    if (allOrderWorkDays.length === 0) continue;
 
-    // Часы заказа делим на его рабочие дни
-    var hoursPerDay = orderTotalHours / orderWorkDays.length;
-    var incomePerDay = orderIncome / orderWorkDays.length;
+    // Доля дня всегда считается от полной длительности заказа.
+    var hoursPerDay = orderTotalHours / allOrderWorkDays.length;
+    var incomePerDay = orderIncome / allOrderWorkDays.length;
 
-    for (var j = 0; j < orderWorkDays.length; j++) {
-      var iso = orderWorkDays[j];
+    for (var j = 0; j < allOrderWorkDays.length; j++) {
+      var iso = allOrderWorkDays[j];
+
+      // В отображение попадают только дни текущего диапазона.
+      if (!workDays[iso]) continue;
+
       var m = parseDate(iso).getMonth();
       if (!months[m].daily[iso]) {
         months[m].daily[iso] = { hours: 0, orderHours: 0, income: 0, count: 0 };
@@ -320,7 +336,8 @@ function initFilters() {
       var customRange = document.getElementById('customRange');
       if (range === 'custom') {
         customRange.style.display = 'flex';
-        setRange('custom');
+        // Не пересчитываем аналитику, пока пользователь не нажал «Применить».
+        // Иначе getDefaultRange('custom') временно подставляет текущий момент.
       } else {
         customRange.style.display = 'none';
         setRange(range);
@@ -332,6 +349,10 @@ function initFilters() {
     var to = document.getElementById('dateTo').value;
     if (!from && !to) {
       toast('Выберите даты');
+      return;
+    }
+    if (from && to && from > to) {
+      toast('Дата начала не может быть позже даты окончания');
       return;
     }
     setCustomRange(from, to);
